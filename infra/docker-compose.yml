@@ -1,0 +1,80 @@
+services:
+  postgres-master:
+    image: postgres:17
+    container_name: postgres-master
+    environment:
+      POSTGRES_USER: sunday
+      POSTGRES_PASSWORD: sunday123
+      POSTGRES_DB: sunday_local
+      POSTGRES_INITDB_ARGS: "-E UTF8"
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-master-data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: |
+      postgres
+      -c wal_level=replica
+      -c max_wal_senders=10
+      -c max_replication_slots=10
+      -c hot_standby=on
+    networks:
+      - sunday-network
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U sunday" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-slave:
+    image: postgres:17
+    container_name: postgres-slave
+    environment:
+      POSTGRES_USER: sunday
+      POSTGRES_PASSWORD: sunday123
+      PGDATA: /var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-slave-data:/var/lib/postgresql/data
+    depends_on:
+      postgres-master:
+        condition: service_healthy
+    networks:
+      - sunday-network
+    command: |
+      bash -c "
+      until pg_basebackup --pgdata=/var/lib/postgresql/data -R --slot=replication_slot --host=postgres-master --port=5432 -U sunday
+      do
+        echo 'Waiting for master to be ready...'
+        sleep 1s
+      done
+      echo 'Backup done, starting replica...'
+      chmod 0700 /var/lib/postgresql/data
+      postgres
+      "
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - sunday-network
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  postgres-master-data:
+  postgres-slave-data:
+  redis-data:
+
+networks:
+  sunday-network:
+    driver: bridge

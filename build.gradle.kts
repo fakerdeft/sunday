@@ -1,0 +1,176 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.springframework.boot.gradle.tasks.bundling.BootJar
+
+plugins {
+    id("org.springframework.boot") version "4.0.1" apply false
+    id("io.spring.dependency-management") version "1.1.7" apply false
+    kotlin("jvm") version "2.3.0" apply false
+    kotlin("plugin.spring") version "2.3.0" apply false
+    kotlin("plugin.jpa") version "2.3.0" apply false
+    kotlin("kapt") version "2.3.0" apply false
+}
+
+// 프로젝트 전체 적용
+allprojects {
+    group = "com.sunday"
+    version = "0.0.1-SNAPSHOT"
+
+    repositories {
+        mavenCentral()
+    }
+}
+
+val queryDslVersion = "7.0"
+
+// 서브모듈 기본 설정
+subprojects {
+    apply(plugin = "org.jetbrains.kotlin.jvm")
+    apply(plugin = "java-library")
+
+    // Logback 제외 (Log4j2 사용)
+    configurations.all {
+        exclude(group = "org.springframework.boot", module = "spring-boot-starter-logging")
+    }
+
+    // 모든 모듈에서 기본으로 필요한 의존성만 추가
+    dependencies {
+        "implementation"("org.jetbrains.kotlin:kotlin-reflect")
+
+        // Test
+        "testImplementation"("org.junit.jupiter:junit-jupiter:5.10.1")
+        "testImplementation"("io.kotest:kotest-runner-junit5:5.8.0")
+        "testImplementation"("io.kotest:kotest-assertions-core:5.8.0")
+        "testImplementation"("io.mockk:mockk:1.13.8")
+    }
+
+    tasks.withType<KotlinCompile> {
+        compilerOptions {
+            freeCompilerArgs.add("-Xjsr305=strict")
+            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
+        }
+    }
+
+    tasks.withType<Test> {
+        useJUnitPlatform()
+    }
+}
+
+// ================================
+// Common 모듈 (공유 라이브러리)
+// ================================
+configure(subprojects.filter { it.name == "common" }) {
+    apply(plugin = "org.springframework.boot")
+    apply(plugin = "io.spring.dependency-management")
+    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
+
+    dependencies {
+        // Spring Boot
+        "implementation"("org.springframework.boot:spring-boot-starter-web")
+        "implementation"("org.springframework.boot:spring-boot-starter-validation")
+
+        // Log4j2
+        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
+        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+
+        // JSON
+        "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
+
+        // Test
+        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
+    }
+
+    // 라이브러리 모듈 - 실행 불가
+    tasks.named<BootJar>("bootJar") {
+        enabled = false
+    }
+
+    tasks.named<Jar>("jar") {
+        enabled = true
+    }
+}
+
+// ================================
+// Infra 모듈 (라이브러리)
+// ================================
+configure(subprojects.filter { it.name.endsWith("-infra") }) {
+    apply(plugin = "org.springframework.boot")
+    apply(plugin = "io.spring.dependency-management")
+    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
+    apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
+    apply(plugin = "org.jetbrains.kotlin.kapt")
+
+    dependencies {
+        // Spring Boot
+        "implementation"("org.springframework.boot:spring-boot-starter-web")
+        "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
+        "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
+        "implementation"("org.springframework.boot:spring-boot-starter-validation")
+
+        // Log4j2
+        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
+        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+
+        // JSON
+        "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
+
+        // PostgreSQL
+        "runtimeOnly"("org.postgresql:postgresql")
+
+        // QueryDSL
+        "implementation"("io.github.openfeign.querydsl:querydsl-jpa:$queryDslVersion")
+        "implementation"("io.github.openfeign.querydsl:querydsl-core:$queryDslVersion")
+        "kapt"("io.github.openfeign.querydsl:querydsl-apt:$queryDslVersion")
+        "kapt"("jakarta.annotation:jakarta.annotation-api")
+        "kapt"("jakarta.persistence:jakarta.persistence-api")
+
+        // Test
+        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
+        "testImplementation"("io.kotest.extensions:kotest-extensions-spring:1.1.3")
+    }
+
+    // 라이브러리 모듈 - 실행 불가
+    tasks.named<BootJar>("bootJar") {
+        enabled = false
+    }
+
+    tasks.named<Jar>("jar") {
+        enabled = true
+    }
+}
+
+// ================================
+// App 모듈 (실행)
+// ================================
+configure(subprojects.filter { it.name == "app" }) {
+    apply(plugin = "org.springframework.boot")
+    apply(plugin = "io.spring.dependency-management")
+    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
+    apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
+    apply(plugin = "org.jetbrains.kotlin.kapt")
+
+    dependencies {
+        "implementation"("org.springframework.boot:spring-boot-starter-web")
+        "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
+        "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
+
+        // Log4j2
+        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
+        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+
+        // JSON
+        "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
+
+        // PostgreSQL
+        "runtimeOnly"("org.postgresql:postgresql")
+
+        // QueryDSL
+        "implementation"("io.github.openfeign.querydsl:querydsl-jpa:$queryDslVersion")
+        "implementation"("io.github.openfeign.querydsl:querydsl-core:$queryDslVersion")
+        "kapt"("io.github.openfeign.querydsl:querydsl-apt:$queryDslVersion")
+        "kapt"("jakarta.annotation:jakarta.annotation-api")
+        "kapt"("jakarta.persistence:jakarta.persistence-api")
+
+        // Test
+        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
+    }
+}
