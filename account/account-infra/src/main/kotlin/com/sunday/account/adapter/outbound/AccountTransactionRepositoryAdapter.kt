@@ -15,6 +15,7 @@ class AccountTransactionRepositoryAdapter(
 
     override fun save(transaction: AccountTransaction): AccountTransaction {
         val entity = AccountTransactionJpaEntity.fromDomain(transaction)
+
         return jpaRepository.save(entity).toDomain()
     }
 
@@ -25,6 +26,7 @@ class AccountTransactionRepositoryAdapter(
 
     override fun findByAccountId(accountId: Long, page: Int, size: Int): List<AccountTransaction> {
         val pageable = PageRequest.of(page, size)
+
         return jpaRepository.findByAccountIdOrderByCreatedAtDesc(accountId, pageable)
             .map { it.toDomain() }
     }

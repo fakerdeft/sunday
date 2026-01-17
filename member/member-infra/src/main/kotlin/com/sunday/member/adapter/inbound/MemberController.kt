@@ -1,64 +1,44 @@
 package com.sunday.member.adapter.inbound
 
 import com.sunday.common.auth.UserId
+import com.sunday.member.adapter.inbound.dto.CreateMemberRequest
+import com.sunday.member.adapter.inbound.dto.MemberResponse
 import com.sunday.member.application.MemberService
-import com.sunday.member.domain.Member
-import org.springframework.web.bind.annotation.*
+import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.ResponseStatus
+import org.springframework.web.bind.annotation.RestController
 
-/**
- * Member REST Controller
- */
 @RestController
 @RequestMapping("/api/members")
 class MemberController(
     private val memberService: MemberService
 ) {
     @GetMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
     fun getMember(@PathVariable id: Long): MemberResponse {
-        val member = memberService.getMemberById(id)
-        return MemberResponse.from(member)
+        return MemberResponse.from(memberService.getMemberById(id))
     }
 
     @GetMapping
+    @ResponseStatus(HttpStatus.OK)
     fun getAllMembers(): List<MemberResponse> {
         return memberService.getAllMembers().map { MemberResponse.from(it) }
     }
 
     @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
     fun createMember(@RequestBody request: CreateMemberRequest): MemberResponse {
-        val member = memberService.createMember(request.name)
-        return MemberResponse.from(member)
+        return MemberResponse.from(memberService.createMember(request.name))
     }
 
     @GetMapping("/me")
+    @ResponseStatus(HttpStatus.OK)
     fun getMyInfo(@UserId memberId: Long): MemberResponse {
-        val member = memberService.getMemberById(memberId)
-        return MemberResponse.from(member)
+        return MemberResponse.from(memberService.getMemberById(memberId))
     }
 }
-
-/**
- * Member 응답 DTO
- */
-data class MemberResponse(
-    val id: Long,
-    val name: String,
-    val createdAt: String
-) {
-    companion object {
-        fun from(member: Member): MemberResponse {
-            return MemberResponse(
-                id = member.id,
-                name = member.name,
-                createdAt = member.createdAt.toString()
-            )
-        }
-    }
-}
-
-/**
- * Member 생성 요청 DTO
- */
-data class CreateMemberRequest(
-    val name: String
-)

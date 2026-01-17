@@ -1,5 +1,9 @@
 package com.sunday.account.domain
 
+import com.sunday.account.exception.InsufficientBalanceException
+import com.sunday.account.exception.InvalidAccountBalanceException
+import com.sunday.account.exception.InvalidAccountUserIdException
+import com.sunday.account.exception.InvalidTransactionAmountException
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
@@ -9,6 +13,7 @@ import java.time.LocalDateTime
  * - 순수 비즈니스 로직 (Spring 의존성 없음)
  * - 불변성 보장 (data class + copy)
  * - 낙관적 락을 위한 version 필드 포함
+ * - 도메인이 스스로 불변성 검증 (Service에서 중복 검증 불필요)
  */
 data class Account(
     val id: Long,
@@ -20,14 +25,16 @@ data class Account(
     val updatedAt: LocalDateTime = LocalDateTime.now()
 ) {
     init {
-        require(userId.isNotBlank()) { "User ID cannot be blank" }
-        require(balance >= BigDecimal.ZERO) { "Balance cannot be negative" }
+        if (userId.isBlank()) {
+            throw InvalidAccountUserIdException()
+        }
+
+        if (balance < BigDecimal.ZERO) {
+            throw InvalidAccountBalanceException(balance)
+        }
     }
 
     companion object {
-        /**
-         * 새로운 Account 생성 (ID는 DB에서 자동 생성)
-         */
         fun create(memberId: Long, userId: String): Account {
             return Account(
                 id = 0L,
@@ -41,10 +48,11 @@ data class Account(
 
     /**
      * 잔액 충전 (deposit)
-     * @return 갱신된 Account와 생성된 거래 이력
      */
     fun deposit(amount: BigDecimal, description: String? = null): Pair<Account, AccountTransaction> {
-        require(amount > BigDecimal.ZERO) { "Deposit amount must be positive" }
+        if (amount <= BigDecimal.ZERO) {
+            throw InvalidTransactionAmountException(amount)
+        }
 
         val newBalance = balance + amount
         val updatedAccount = this.copy(
@@ -65,12 +73,17 @@ data class Account(
 
     /**
      * 잔액 차감 (withdraw)
-     * @return 갱신된 Account와 생성된 거래 이력
-     * @throws IllegalStateException 잔액 부족 시
+     *
+     * @throws InsufficientBalanceException 잔액 부족 시
      */
     fun withdraw(amount: BigDecimal, description: String? = null): Pair<Account, AccountTransaction> {
-        require(amount > BigDecimal.ZERO) { "Withdrawal amount must be positive" }
-        check(balance >= amount) { "Insufficient balance. Current: $balance, Requested: $amount" }
+        if (amount <= BigDecimal.ZERO) {
+            throw InvalidTransactionAmountException(amount)
+        }
+
+        if (balance < amount) {
+            throw InsufficientBalanceException(balance, amount)
+        }
 
         val newBalance = balance - amount
         val updatedAccount = this.copy(
@@ -87,12 +100,5 @@ data class Account(
         )
 
         return updatedAccount to transaction
-    }
-
-    /**
-     * 잔액 차감 가능 여부 확인
-     */
-    fun canWithdraw(amount: BigDecimal): Boolean {
-        return balance >= amount
     }
 }

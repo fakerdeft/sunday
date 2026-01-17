@@ -2,4 +2,5 @@
 
 dependencies {
     implementation(project(":order:order-core"))
+    implementation(project(":common"))
 }

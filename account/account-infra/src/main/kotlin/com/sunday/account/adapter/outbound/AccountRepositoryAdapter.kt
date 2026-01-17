@@ -39,6 +39,7 @@ class AccountRepositoryAdapter(
             existingEntity.updateFrom(account)
             existingEntity
         }
+
         return jpaRepository.save(entity).toDomain()
     }
 

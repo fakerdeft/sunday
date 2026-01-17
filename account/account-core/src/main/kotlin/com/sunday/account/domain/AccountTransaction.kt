@@ -1,5 +1,7 @@
 package com.sunday.account.domain
 
+import com.sunday.account.exception.InvalidAccountBalanceException
+import com.sunday.account.exception.InvalidTransactionAmountException
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
@@ -19,8 +21,13 @@ data class AccountTransaction(
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
     init {
-        require(amount > BigDecimal.ZERO) { "Transaction amount must be positive" }
-        require(balanceAfter >= BigDecimal.ZERO) { "Balance after transaction cannot be negative" }
+        if (amount <= BigDecimal.ZERO) {
+            throw InvalidTransactionAmountException(amount)
+        }
+
+        if (balanceAfter < BigDecimal.ZERO) {
+            throw InvalidAccountBalanceException(balanceAfter)
+        }
     }
 
     companion object {

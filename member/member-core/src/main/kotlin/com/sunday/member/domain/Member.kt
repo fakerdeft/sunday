@@ -1,5 +1,6 @@
 package com.sunday.member.domain
 
+import com.sunday.member.exception.InvalidMemberNameException
 import java.time.LocalDateTime
 
 /**
@@ -15,16 +16,18 @@ data class Member(
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
     init {
-        require(name.isNotBlank()) { "Member name cannot be blank" }
+        if (name.isBlank()) {
+            throw InvalidMemberNameException()
+        }
     }
 
     companion object {
         /**
-         * 새로운 Member 생성 (ID는 DB에서 자동 생성)
+         * 새로운 Member 생성
          */
         fun create(name: String): Member {
             return Member(
-                id = 0L, // ID는 persistence layer에서 할당됨
+                id = 0L,
                 name = name
             )
         }
