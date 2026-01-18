@@ -16,6 +16,10 @@ class AccountTransactionJpaEntity(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0L,
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "account_id", nullable = false, insertable = false, updatable = false)
+    val account: AccountJpaEntity? = null,
+
     @Column(name = "account_id", nullable = false)
     val accountId: Long,
 
