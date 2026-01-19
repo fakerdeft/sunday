@@ -56,15 +56,33 @@ subprojects {
 }
 
 // ================================
-// Common 모듈 (공유 라이브러리)
+// Core 모듈 (Domain + Application Service)
 // ================================
-configure(subprojects.filter { it.name == "common" }) {
+configure(subprojects.filter { it.name.endsWith("-core") }) {
+    apply(plugin = "org.springframework.boot")
+    apply(plugin = "io.spring.dependency-management")
+    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
+
+    // 라이브러리 모듈 - 실행 불가
+    tasks.named<BootJar>("bootJar") {
+        enabled = false
+    }
+
+    tasks.named<Jar>("jar") {
+        enabled = true
+    }
+}
+
+// ================================
+// API 모듈 (Controller, DTO - Inbound Adapter)
+// ================================
+configure(subprojects.filter { it.name.endsWith("-api") }) {
     apply(plugin = "org.springframework.boot")
     apply(plugin = "io.spring.dependency-management")
     apply(plugin = "org.jetbrains.kotlin.plugin.spring")
 
     dependencies {
-        // Spring Boot
+        // Spring Web
         "implementation"("org.springframework.boot:spring-boot-starter-web")
         "implementation"("org.springframework.boot:spring-boot-starter-validation")
 
@@ -90,7 +108,7 @@ configure(subprojects.filter { it.name == "common" }) {
 }
 
 // ================================
-// Infra 모듈 (라이브러리)
+// Infra 모듈 (Repository Adapter - Outbound Adapter)
 // ================================
 configure(subprojects.filter { it.name.endsWith("-infra") }) {
     apply(plugin = "org.springframework.boot")
@@ -100,18 +118,13 @@ configure(subprojects.filter { it.name.endsWith("-infra") }) {
     apply(plugin = "org.jetbrains.kotlin.kapt")
 
     dependencies {
-        // Spring Boot
-        "implementation"("org.springframework.boot:spring-boot-starter-web")
+        // Spring Data
         "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
         "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
-        "implementation"("org.springframework.boot:spring-boot-starter-validation")
 
         // Log4j2
         "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
         "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
-
-        // JSON
-        "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
 
         // PostgreSQL
         "runtimeOnly"("org.postgresql:postgresql")
@@ -119,7 +132,7 @@ configure(subprojects.filter { it.name.endsWith("-infra") }) {
         // QueryDSL
         "implementation"("io.github.openfeign.querydsl:querydsl-jpa:$queryDslVersion")
         "implementation"("io.github.openfeign.querydsl:querydsl-core:$queryDslVersion")
-        "kapt"("io.github.openfeign.querydsl:querydsl-apt:$queryDslVersion")
+        "kapt"("io.github.openfeign.querydsl:querydsl-apt:$queryDslVersion:jakarta")
         "kapt"("jakarta.annotation:jakarta.annotation-api")
         "kapt"("jakarta.persistence:jakarta.persistence-api")
 
@@ -146,7 +159,6 @@ configure(subprojects.filter { it.name == "app" }) {
     apply(plugin = "io.spring.dependency-management")
     apply(plugin = "org.jetbrains.kotlin.plugin.spring")
     apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
-    apply(plugin = "org.jetbrains.kotlin.kapt")
 
     dependencies {
         "implementation"("org.springframework.boot:spring-boot-starter-web")
@@ -165,10 +177,6 @@ configure(subprojects.filter { it.name == "app" }) {
 
         // QueryDSL
         "implementation"("io.github.openfeign.querydsl:querydsl-jpa:$queryDslVersion")
-        "implementation"("io.github.openfeign.querydsl:querydsl-core:$queryDslVersion")
-        "kapt"("io.github.openfeign.querydsl:querydsl-apt:$queryDslVersion")
-        "kapt"("jakarta.annotation:jakarta.annotation-api")
-        "kapt"("jakarta.persistence:jakarta.persistence-api")
 
         // Test
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")

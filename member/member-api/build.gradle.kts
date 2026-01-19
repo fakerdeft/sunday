@@ -1,4 +1,4 @@
-// Member Infra - Repository Adapter (Outbound Adapter)
+// Member API - Controller, DTO (Inbound Adapter)
 
 dependencies {
     implementation(project(":common"))

@@ -1,5 +1,6 @@
-package com.sunday.common.auth
+package com.sunday.app.auth
 
+import com.sunday.common.auth.UserId
 import org.springframework.core.MethodParameter
 import org.springframework.stereotype.Component
 import org.springframework.web.bind.support.WebDataBinderFactory

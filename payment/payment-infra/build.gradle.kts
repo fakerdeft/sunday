@@ -1,4 +1,4 @@
-// Payment Infra - Spring Boot, JPA, Redis 구현
+// Payment Infra - Repository Adapter (Outbound Adapter)
 
 dependencies {
     implementation(project(":payment:payment-core"))

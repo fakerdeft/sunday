@@ -1,4 +1,4 @@
-// Account Infra - Repository Adapter (Outbound Adapter)
+// Account API - Controller, DTO (Inbound Adapter)
 
 dependencies {
     implementation(project(":common"))

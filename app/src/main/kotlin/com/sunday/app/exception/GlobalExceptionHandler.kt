@@ -1,7 +1,18 @@
-package com.sunday.common.exception
+package com.sunday.app.exception
 
-import com.sunday.common.auth.InvalidUserIdException
-import com.sunday.common.auth.MissingUserIdException
+import com.sunday.app.auth.InvalidUserIdException
+import com.sunday.app.auth.MissingUserIdException
+import com.sunday.common.exception.AlreadyExistsException
+import com.sunday.common.exception.ConcurrencyException
+import com.sunday.common.exception.DuplicateRequestException
+import com.sunday.common.exception.HotDealNotActiveException
+import com.sunday.common.exception.InsufficientBalanceException
+import com.sunday.common.exception.InvalidOrderStatusException
+import com.sunday.common.exception.LockAcquisitionException
+import com.sunday.common.exception.NotFoundException
+import com.sunday.common.exception.OrderNotPayableException
+import com.sunday.common.exception.OutOfStockException
+import com.sunday.common.exception.PaymentFailedException
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus

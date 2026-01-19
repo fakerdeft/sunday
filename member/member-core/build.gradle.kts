@@ -1,5 +1,9 @@
-// Member Core - 순수 비즈니스 로직 (Spring 의존성 없음)
+// Member Core - Domain + Application Service
 
 dependencies {
     implementation(project(":common"))
+
+    // Spring 최소 의존성 (Service, Transaction)
+    implementation("org.springframework:spring-context")
+    implementation("org.springframework:spring-tx")
 }

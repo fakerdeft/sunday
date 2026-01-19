@@ -1,6 +1,7 @@
-package com.sunday.common.config
+package com.sunday.app.config
 
 import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.jdbc.DataSourceBuilder
 import org.springframework.context.annotation.Bean
@@ -11,8 +12,13 @@ import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource
 import org.springframework.transaction.support.TransactionSynchronizationManager
 import javax.sql.DataSource
 
+/**
+ * Master-Slave Replication DataSource 설정
+ * slave 설정이 있을 때만 활성화
+ */
 @Configuration
-class DataSourceConfig {
+@ConditionalOnProperty(name = ["spring.datasource.slave.jdbc-url"])
+class ReplicationDataSourceConfig {
 
     @Bean
     @ConfigurationProperties(prefix = "spring.datasource.master")

@@ -1,6 +1,6 @@
-package com.sunday.common.config
+package com.sunday.app.config
 
-import com.sunday.common.auth.UserIdArgumentResolver
+import com.sunday.app.auth.UserIdArgumentResolver
 import org.springframework.context.annotation.Configuration
 import org.springframework.web.method.support.HandlerMethodArgumentResolver
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer

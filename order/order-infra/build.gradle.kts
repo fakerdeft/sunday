@@ -1,4 +1,4 @@
-// Order Infra - Spring Boot, JPA, Redis 구현
+// Order Infra - Repository Adapter, Scheduler (Outbound Adapter)
 
 dependencies {
     implementation(project(":order:order-core"))

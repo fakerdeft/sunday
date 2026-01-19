@@ -1,4 +1,4 @@
-package com.sunday.common.config
+package com.sunday.app.config
 
 import com.querydsl.jpa.impl.JPAQueryFactory
 import jakarta.persistence.EntityManager

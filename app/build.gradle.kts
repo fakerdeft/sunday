@@ -2,8 +2,20 @@
 
 dependencies {
     implementation(project(":common"))
+
+    // Member
+    implementation(project(":member:member-api"))
     implementation(project(":member:member-infra"))
+
+    // Account
+    implementation(project(":account:account-api"))
     implementation(project(":account:account-infra"))
+
+    // Payment
+    implementation(project(":payment:payment-api"))
     implementation(project(":payment:payment-infra"))
+
+    // Order
+    implementation(project(":order:order-api"))
     implementation(project(":order:order-infra"))
 }
