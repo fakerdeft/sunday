@@ -196,8 +196,8 @@ class OrderServiceTest : DescribeSpec({
                 )
                 every { orderRepository.findById(1L) } returns order
                 every { productRepository.findById(1L) } returns product
-                every { stockRepository.increaseStock(1L, 2, 100) } returns Unit
-                every { stockRepository.releaseReservation("res-key-123") } returns Unit
+                every { stockRepository.increaseStock(1L, 2, 100) } returns 100
+                every { stockRepository.releaseReservation("res-key-123") } returns true
                 every { orderRepository.save(any()) } answers { firstArg() }
 
                 val result = orderService.cancelOrder(1L)
@@ -225,7 +225,7 @@ class OrderServiceTest : DescribeSpec({
                     expireAt = LocalDateTime.now().plusMinutes(5)
                 )
                 every { orderRepository.findById(1L) } returns order
-                every { stockRepository.releaseReservation("res-key-123") } returns Unit
+                every { stockRepository.releaseReservation("res-key-123") } returns true
                 every { orderRepository.save(any()) } answers { firstArg() }
 
                 val result = orderService.markOrderAsPaid(1L)
