@@ -33,14 +33,10 @@ class StockSynchronizationScheduler(
 
             products.forEach { product ->
                 val redisStock = stockRepository.getStock(product.id)
-                
-                // DB 재고와 Redis 재고가 다르면 업데이트
+
                 if (product.stock != redisStock) {
-                    // Product 도메인 객체는 불변이므로 copy로 수정 후 저장
-                    // 실제로는 JPA Dirty Checking을 위해 Entity 업데이트가 필요하지만,
-                    // 현재 구조상 Repository.save() 호출로 처리
-                    val updatedProduct = product.copy(stock = redisStock)
-                    productRepository.save(updatedProduct)
+                    product.stock = redisStock
+                    productRepository.save(product)
                     updateCount++
                 }
             }

@@ -16,6 +16,7 @@ dependencies {
     implementation(project(":payment:payment-infra"))
 
     // Order
+    implementation(project(":order:order-core"))
     implementation(project(":order:order-api"))
     implementation(project(":order:order-infra"))
 }

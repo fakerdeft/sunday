@@ -1,4 +1,4 @@
-package com.sunday.app.exception
+package com.sunday.common.exception
 
 import java.time.LocalDateTime
 

@@ -152,6 +152,41 @@ configure(subprojects.filter { it.name.endsWith("-infra") }) {
 }
 
 // ================================
+// Batch 모듈 (Scheduler Jobs)
+// ================================
+configure(subprojects.filter { it.name.endsWith("-batch") }) {
+    apply(plugin = "org.springframework.boot")
+    apply(plugin = "io.spring.dependency-management")
+    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
+    apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
+
+    dependencies {
+        // Spring Data (for Transaction)
+        "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
+        "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
+
+        // Log4j2
+        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
+        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+
+        // PostgreSQL
+        "runtimeOnly"("org.postgresql:postgresql")
+
+        // Test
+        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
+    }
+
+    // 라이브러리 모듈 - 실행 불가
+    tasks.named<BootJar>("bootJar") {
+        enabled = false
+    }
+
+    tasks.named<Jar>("jar") {
+        enabled = true
+    }
+}
+
+// ================================
 // App 모듈 (실행)
 // ================================
 configure(subprojects.filter { it.name == "app" }) {

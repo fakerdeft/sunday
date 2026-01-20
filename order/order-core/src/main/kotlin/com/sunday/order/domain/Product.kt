@@ -13,13 +13,13 @@ data class Product(
     val id: Long,
     val name: String,
     val price: BigDecimal,
-    val stock: Int,
-    val totalQuantity: Int, // 총 발행 수량 (최대 재고 기준)
+    var stock: Int,
+    val totalQuantity: Int,
     val isHotDeal: Boolean = false,
     val hotDealStartTime: LocalDateTime? = null,
     val hotDealEndTime: LocalDateTime? = null,
     val createdAt: LocalDateTime = LocalDateTime.now(),
-    val updatedAt: LocalDateTime = LocalDateTime.now()
+    var updatedAt: LocalDateTime = LocalDateTime.now()
 ) {
     init {
         if (name.isBlank()) {
@@ -52,7 +52,7 @@ data class Product(
                 name = name,
                 price = price,
                 stock = stock,
-                totalQuantity = stock, // 초기 생성 시 총 수량 = 재고
+                totalQuantity = stock,
                 isHotDeal = true,
                 hotDealStartTime = startTime,
                 hotDealEndTime = endTime
@@ -66,8 +66,8 @@ data class Product(
         val now = LocalDateTime.now()
 
         return hotDealStartTime != null &&
-               hotDealEndTime != null &&
-               now.isAfter(hotDealStartTime) &&
-               now.isBefore(hotDealEndTime)
+                hotDealEndTime != null &&
+                now.isAfter(hotDealStartTime) &&
+                now.isBefore(hotDealEndTime)
     }
 }

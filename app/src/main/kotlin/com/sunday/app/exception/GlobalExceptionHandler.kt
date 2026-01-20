@@ -5,6 +5,7 @@ import com.sunday.app.auth.MissingUserIdException
 import com.sunday.common.exception.AlreadyExistsException
 import com.sunday.common.exception.ConcurrencyException
 import com.sunday.common.exception.DuplicateRequestException
+import com.sunday.common.exception.ErrorResponse
 import com.sunday.common.exception.HotDealNotActiveException
 import com.sunday.common.exception.InsufficientBalanceException
 import com.sunday.common.exception.InvalidOrderStatusException

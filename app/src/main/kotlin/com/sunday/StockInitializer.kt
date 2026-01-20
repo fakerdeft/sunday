@@ -1,4 +1,4 @@
-package com.sunday.order.scheduler
+package com.sunday
 
 import com.sunday.order.port.outbound.ProductRepository
 import com.sunday.order.port.outbound.StockRepository
