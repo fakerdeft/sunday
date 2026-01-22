@@ -11,7 +11,6 @@ import com.sunday.order.port.inbound.OrderUseCase
 import com.sunday.order.port.outbound.OrderRepository
 import com.sunday.order.port.outbound.ProductRepository
 import com.sunday.order.port.outbound.StockRepository
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
@@ -48,18 +47,11 @@ class OrderService(
     }
 
     /**
-     * 주문 생성 (재고 선점)
-     *
-     * 1. 중복 주문 체크
-     * 2. 상품 조회
-     * 3. 핫딜 활성화 확인
-     * 4. Redis에서 재고 차감
-     * 5. 선점 키 생성
-     * 6. Order 저장
+     * 주문 생성
      */
     @Transactional
     override fun createOrder(memberId: Long, productId: Long, quantity: Int): Order {
-        // 1. 중복 주문 체크 (같은 상품에 대한 PENDING 주문이 있는지)
+        // 1. 중복 주문 체크
         if (orderRepository.existsPendingOrder(memberId, productId)) {
             throw DuplicatePendingOrderException(memberId, productId)
         }
@@ -77,7 +69,7 @@ class OrderService(
             ?: throw OutOfStockException(productId, quantity, stockRepository.getStock(productId))
 
         try {
-            // 4. 선점 키 생성
+            // 5. 선점 키 생성
             val reservationKey = stockRepository.createReservation(
                 productId = productId,
                 memberId = memberId,
@@ -85,7 +77,7 @@ class OrderService(
                 ttlSeconds = RESERVATION_TTL_SECONDS
             )
 
-            // 5. Order 저장
+            // 6. Order 저장
             val order = Order.create(
                 memberId = memberId,
                 product = product,
@@ -94,12 +86,8 @@ class OrderService(
             )
 
             return orderRepository.save(order)
-        } catch (e: DataIntegrityViolationException) {
-            // Unique Index 위반 (동시 요청으로 인한 중복 주문)
-            stockRepository.increaseStock(productId, quantity)
-            throw DuplicatePendingOrderException(memberId, productId)
         } catch (e: Exception) {
-            // 기타 실패 시 재고 복구
+            // 실패 시 재고 복구
             stockRepository.increaseStock(productId, quantity)
             throw e
         }
@@ -117,7 +105,7 @@ class OrderService(
     }
 
     /**
-     * 주문 취소 (재고 복구)
+     * 주문 취소
      */
     @Transactional
     override fun cancelOrder(orderId: Long): Order {

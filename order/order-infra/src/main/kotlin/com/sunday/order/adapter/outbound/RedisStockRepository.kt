@@ -24,7 +24,7 @@ class RedisStockRepository(
         private const val RESERVATION_KEY_PREFIX = "reservation:"
 
         /**
-         * Lua 스크립트: 재고 확인 후 차감 (원자적)
+         * Lua 스크립트: 재고 확인 후 차감
          * - 현재 재고 >= 요청 수량이면 차감 후 남은 수량 반환
          * - 재고 부족이면 -1 반환
          */
@@ -45,7 +45,7 @@ class RedisStockRepository(
          * Lua 스크립트: 재고 증가 (최대 재고 제한)
          * - ARGV[1]: 증가시킬 수량
          * - ARGV[2]: 최대 재고량 (없으면 -1)
-         * 
+         *
          * 로직:
          * 1. 현재 재고 조회
          * 2. 최대 재고 제한이 있고 (-1이 아니고), (현재 재고 + 증가량 > 최대 재고) 이면
@@ -93,7 +93,7 @@ class RedisStockRepository(
     override fun increaseStock(productId: Long, quantity: Int, maxStock: Int?): Int {
         val key = stockKey(productId)
         val maxStockArg = maxStock?.toString() ?: "-1"
-        
+
         val result = redisTemplate.execute(
             INCREASE_STOCK_SCRIPT,
             listOf(key),

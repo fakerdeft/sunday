@@ -5,6 +5,7 @@ include("app")
 
 // 공통 모듈
 include("common")
+include("support-infra")
 
 // Member domain
 include("member:member-core")

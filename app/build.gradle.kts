@@ -2,6 +2,7 @@
 
 dependencies {
     implementation(project(":common"))
+    implementation(project(":support-infra"))
 
     // Member
     implementation(project(":member:member-api"))

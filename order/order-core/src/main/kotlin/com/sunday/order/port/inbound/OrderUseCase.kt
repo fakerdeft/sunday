@@ -23,15 +23,12 @@ interface OrderUseCase {
     fun getProduct(productId: Long): Product
 
     /**
-     * 재고 조회 (Redis)
+     * 재고 조회
      */
     fun getStock(productId: Long): Int
 
     /**
-     * 주문 생성 (재고 선점)
-     * - Redis에서 재고 차감
-     * - 5분 TTL로 선점
-     * - Order 생성 (PENDING 상태)
+     * 주문 생성
      */
     fun createOrder(memberId: Long, productId: Long, quantity: Int): Order
 
@@ -46,7 +43,7 @@ interface OrderUseCase {
     fun getMyOrders(memberId: Long): List<Order>
 
     /**
-     * 주문 취소 (재고 복구)
+     * 주문 취소
      */
     fun cancelOrder(orderId: Long): Order
 
@@ -56,9 +53,7 @@ interface OrderUseCase {
     fun markOrderAsPaid(orderId: Long): Order
 
     /**
-     * 만료된 주문 처리 (스케줄러용)
-     * - PENDING 상태이면서 expireAt 지난 주문들 EXPIRED 처리
-     * - 재고 복구
+     * 만료된 주문 처리
      */
     fun expireOrders(): Int
 }

@@ -37,10 +37,11 @@ subprojects {
         "implementation"("org.jetbrains.kotlin:kotlin-reflect")
 
         // Test
-        "testImplementation"("org.junit.jupiter:junit-jupiter:5.10.1")
-        "testImplementation"("io.kotest:kotest-runner-junit5:5.8.0")
-        "testImplementation"("io.kotest:kotest-assertions-core:5.8.0")
-        "testImplementation"("io.mockk:mockk:1.13.8")
+        "testImplementation"("org.junit.jupiter:junit-jupiter:6.1.0-M1")
+        "testImplementation"("io.kotest:kotest-runner-junit5:6.1.0")
+        "testImplementation"("io.kotest:kotest-assertions-core:6.1.0")
+        "testImplementation"("io.kotest:kotest-extensions-spring:6.1.0")
+        "testImplementation"("io.mockk:mockk:1.14.7")
     }
 
     tasks.withType<KotlinCompile> {
@@ -74,7 +75,7 @@ configure(subprojects.filter { it.name.endsWith("-core") }) {
 }
 
 // ================================
-// API 모듈 (Controller, DTO - Inbound Adapter)
+// API 모듈 (Inbound Adapter)
 // ================================
 configure(subprojects.filter { it.name.endsWith("-api") }) {
     apply(plugin = "org.springframework.boot")
@@ -82,7 +83,7 @@ configure(subprojects.filter { it.name.endsWith("-api") }) {
     apply(plugin = "org.jetbrains.kotlin.plugin.spring")
 
     dependencies {
-        // Spring Web
+        // Spring Boot
         "implementation"("org.springframework.boot:spring-boot-starter-web")
         "implementation"("org.springframework.boot:spring-boot-starter-validation")
 
@@ -95,6 +96,9 @@ configure(subprojects.filter { it.name.endsWith("-api") }) {
 
         // Test
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
+        "testImplementation"("org.testcontainers:testcontainers:2.0.3")
+        "testImplementation"("org.testcontainers:junit-jupiter:1.21.4")
+        "testImplementation"("org.testcontainers:postgresql:1.21.4")
     }
 
     // 라이브러리 모듈 - 실행 불가
@@ -108,7 +112,7 @@ configure(subprojects.filter { it.name.endsWith("-api") }) {
 }
 
 // ================================
-// Infra 모듈 (Repository Adapter - Outbound Adapter)
+// Infra 모듈 (Outbound Adapter)
 // ================================
 configure(subprojects.filter { it.name.endsWith("-infra") }) {
     apply(plugin = "org.springframework.boot")
@@ -118,7 +122,7 @@ configure(subprojects.filter { it.name.endsWith("-infra") }) {
     apply(plugin = "org.jetbrains.kotlin.kapt")
 
     dependencies {
-        // Spring Data
+        // Spring Boot
         "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
         "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
 
@@ -138,7 +142,6 @@ configure(subprojects.filter { it.name.endsWith("-infra") }) {
 
         // Test
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
-        "testImplementation"("io.kotest.extensions:kotest-extensions-spring:1.1.3")
     }
 
     // 라이브러리 모듈 - 실행 불가
@@ -161,7 +164,7 @@ configure(subprojects.filter { it.name.endsWith("-batch") }) {
     apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
 
     dependencies {
-        // Spring Data (for Transaction)
+        // Spring Boot
         "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
         "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
 
@@ -196,6 +199,7 @@ configure(subprojects.filter { it.name == "app" }) {
     apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
 
     dependencies {
+        // Spring Boot
         "implementation"("org.springframework.boot:spring-boot-starter-web")
         "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
         "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
