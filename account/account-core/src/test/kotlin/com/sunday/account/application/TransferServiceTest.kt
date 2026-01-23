@@ -10,6 +10,7 @@ import com.sunday.account.port.outbound.AccountRepository
 import com.sunday.account.port.outbound.AccountTransactionRepository
 import com.sunday.account.port.outbound.TransferRepository
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.IsolationMode
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.every
@@ -18,6 +19,8 @@ import io.mockk.verify
 import java.math.BigDecimal
 
 class TransferServiceTest : DescribeSpec({
+
+    isolationMode = IsolationMode.InstancePerLeaf
 
     val transferRepository = mockk<TransferRepository>()
     val accountRepository = mockk<AccountRepository>()
