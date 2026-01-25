@@ -96,7 +96,7 @@ configure(subprojects.filter { it.name.endsWith("-api") }) {
 
         // Test
         "testImplementation"("org.springframework.boot:spring-boot-starter-test")
-        "testImplementation"("org.testcontainers:testcontainers:2.0.3")
+        "testImplementation"("org.testcontainers:testcontainers:1.21.4")
         "testImplementation"("org.testcontainers:junit-jupiter:1.21.4")
         "testImplementation"("org.testcontainers:postgresql:1.21.4")
     }

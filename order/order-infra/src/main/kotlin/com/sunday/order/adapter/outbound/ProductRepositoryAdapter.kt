@@ -18,6 +18,12 @@ class ProductRepositoryAdapter(
         return jpaRepository.findByIdOrNull(id)?.toDomain()
     }
 
+    override fun findByIdWithPessimisticLock(id: Long): Product? {
+        return jpaRepository.findByIdWithPessimisticLock(id)
+            .orElse(null)
+            ?.toDomain()
+    }
+
     override fun findAll(): List<Product> {
         return jpaRepository.findAll().map { it.toDomain() }
     }
@@ -31,8 +37,11 @@ class ProductRepositoryAdapter(
     }
 
     override fun save(product: Product): Product {
-        val entity = ProductJpaEntity.fromDomain(product)
+        return jpaRepository.save(ProductJpaEntity.fromDomain(product)).toDomain()
+    }
 
-        return jpaRepository.save(entity).toDomain()
+    override fun saveAll(products: List<Product>): List<Product> {
+        return jpaRepository.saveAll(products.map { ProductJpaEntity.fromDomain(it) })
+            .map { it.toDomain() }
     }
 }

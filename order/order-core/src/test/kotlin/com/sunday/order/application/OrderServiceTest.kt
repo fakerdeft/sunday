@@ -9,6 +9,7 @@ import com.sunday.order.exception.OrderNotFoundException
 import com.sunday.order.exception.OutOfStockException
 import com.sunday.order.exception.ProductNotFoundException
 import com.sunday.order.port.outbound.OrderRepository
+import com.sunday.order.port.outbound.OrderStreamPublisher
 import com.sunday.order.port.outbound.ProductRepository
 import com.sunday.order.port.outbound.StockRepository
 import io.kotest.assertions.throwables.shouldThrow
@@ -25,7 +26,8 @@ class OrderServiceTest : DescribeSpec({
     val productRepository = mockk<ProductRepository>()
     val orderRepository = mockk<OrderRepository>()
     val stockRepository = mockk<StockRepository>()
-    val orderService = OrderService(productRepository, orderRepository, stockRepository)
+    val orderStreamPublisher = mockk<OrderStreamPublisher>()
+    val orderService = OrderService(productRepository, orderRepository, stockRepository, orderStreamPublisher)
 
     describe("getProduct") {
         context("존재하는 상품 ID로 조회하면") {
@@ -68,19 +70,19 @@ class OrderServiceTest : DescribeSpec({
                     totalQuantity = 100
                 )
                 every { orderRepository.existsPendingOrder(100L, 1L) } returns false
-                every { productRepository.findById(1L) } returns product
-                every { stockRepository.decreaseStock(1L, 2) } returns 98
-                every { stockRepository.createReservation(1L, 100L, 2, any()) } returns "res-key-123"
+                every { productRepository.findByIdWithPessimisticLock(1L) } returns product
+                every { productRepository.save(any()) } answers { firstArg() }
                 every { orderRepository.save(any()) } answers {
                     firstArg<Order>().copy(id = 1L)
                 }
 
-                val result = orderService.createOrder(100L, 1L, 2)
+                val result = orderService.createOrderWithPessimisticLock(100L, 1L, 2)
 
                 result.memberId shouldBe 100L
                 result.productId shouldBe 1L
                 result.quantity shouldBe 2
                 result.status shouldBe OrderStatus.PENDING
+                verify { productRepository.save(any()) }
             }
         }
 
@@ -89,7 +91,7 @@ class OrderServiceTest : DescribeSpec({
                 every { orderRepository.existsPendingOrder(100L, 1L) } returns true
 
                 shouldThrow<DuplicatePendingOrderException> {
-                    orderService.createOrder(100L, 1L, 2)
+                    orderService.createOrderWithPessimisticLock(100L, 1L, 2)
                 }
             }
         }
@@ -104,12 +106,10 @@ class OrderServiceTest : DescribeSpec({
                     totalQuantity = 100
                 )
                 every { orderRepository.existsPendingOrder(100L, 1L) } returns false
-                every { productRepository.findById(1L) } returns product
-                every { stockRepository.decreaseStock(1L, 2) } returns null
-                every { stockRepository.getStock(1L) } returns 1
+                every { productRepository.findByIdWithPessimisticLock(1L) } returns product
 
                 shouldThrow<OutOfStockException> {
-                    orderService.createOrder(100L, 1L, 2)
+                    orderService.createOrderWithPessimisticLock(100L, 1L, 2)
                 }
             }
         }
@@ -128,10 +128,10 @@ class OrderServiceTest : DescribeSpec({
                     hotDealEndTime = now.plusHours(2)
                 )
                 every { orderRepository.existsPendingOrder(100L, 1L) } returns false
-                every { productRepository.findById(1L) } returns product
+                every { productRepository.findByIdWithPessimisticLock(1L) } returns product
 
                 shouldThrow<HotDealNotActiveException> {
-                    orderService.createOrder(100L, 1L, 2)
+                    orderService.createOrderWithPessimisticLock(100L, 1L, 2)
                 }
             }
         }
@@ -196,22 +196,20 @@ class OrderServiceTest : DescribeSpec({
                 )
                 every { orderRepository.findById(1L) } returns order
                 every { productRepository.findById(1L) } returns product
-                every { stockRepository.increaseStock(1L, 2, 100) } returns 100
-                every { stockRepository.releaseReservation("res-key-123") } returns true
+                every { productRepository.save(any()) } answers { firstArg() }
                 every { orderRepository.save(any()) } answers { firstArg() }
 
                 val result = orderService.cancelOrder(1L)
 
                 result.status shouldBe OrderStatus.CANCELLED
-                verify { stockRepository.increaseStock(1L, 2, 100) }
-                verify { stockRepository.releaseReservation("res-key-123") }
+                verify { productRepository.save(any()) }
             }
         }
     }
 
     describe("markOrderAsPaid") {
         context("결제 완료 처리하면") {
-            it("PAID 상태가 되고 선점이 해제된다") {
+            it("PAID 상태가 된다") {
                 val order = Order(
                     id = 1L,
                     memberId = 100L,
@@ -225,13 +223,11 @@ class OrderServiceTest : DescribeSpec({
                     expireAt = LocalDateTime.now().plusMinutes(5)
                 )
                 every { orderRepository.findById(1L) } returns order
-                every { stockRepository.releaseReservation("res-key-123") } returns true
                 every { orderRepository.save(any()) } answers { firstArg() }
 
                 val result = orderService.markOrderAsPaid(1L)
 
                 result.status shouldBe OrderStatus.PAID
-                verify { stockRepository.releaseReservation("res-key-123") }
             }
         }
     }

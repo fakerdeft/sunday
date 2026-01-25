@@ -6,12 +6,14 @@ import org.slf4j.LoggerFactory
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * 애플리케이션 시작 시 Redis에 상품 재고 초기화
  *
- * DB의 상품 재고를 Redis에 동기화하여
- * 원자적 재고 차감이 가능하도록 함
+ * - 일반 상품: stock만 Redis에 저장 (initializeStock)
+ * - 핫딜 상품: stock, price, name을 Redis Hash에 저장 (initializeHotDeal)
+ *   → 비동기 주문 시 DB 조회 없이 Redis만으로 처리 가능
  */
 @Component
 class StockInitializer(
@@ -21,18 +23,39 @@ class StockInitializer(
     private val log = LoggerFactory.getLogger(javaClass)
 
     @EventListener(ApplicationReadyEvent::class)
+    @Transactional
     fun initializeStock() {
         log.info("Initializing stock in Redis...")
 
         val products = productRepository.findAll()
-        var count = 0
+        var regularCount = 0
+        var hotDealCount = 0
 
         products.forEach { product ->
-            stockRepository.initializeStock(product.id, product.stock)
-            count++
-            log.debug("Initialized stock for product ${product.id}: ${product.stock}")
+            val stockQuantity = product.totalQuantity
+            product.stock = stockQuantity
+
+            if (product.isHotDeal) {
+                // 핫딜 상품: Redis Hash에 stock, price, name 저장
+                stockRepository.initializeHotDeal(
+                    productId = product.id,
+                    stock = stockQuantity,
+                    price = product.price.toString(),
+                    name = product.name
+                )
+                hotDealCount++
+                log.debug("Initialized hot deal product ${product.id}: stock=$stockQuantity, price=${product.price}")
+            } else {
+                // 일반 상품: stock만 저장
+                stockRepository.initializeStock(product.id, stockQuantity)
+                regularCount++
+                log.debug("Initialized stock for product ${product.id}: $stockQuantity")
+            }
         }
 
-        log.info("Stock initialization completed. {} products initialized.", count)
+        productRepository.saveAll(products)
+
+        log.info("Stock initialization completed. {} regular products, {} hot deal products initialized.",
+            regularCount, hotDealCount)
     }
 }

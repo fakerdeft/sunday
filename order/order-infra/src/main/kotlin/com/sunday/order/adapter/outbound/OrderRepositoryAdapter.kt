@@ -67,4 +67,8 @@ class OrderRepositoryAdapter(
 
         return jpaRepository.save(entity).toDomain()
     }
+
+    override fun deleteAll() {
+        jpaRepository.deleteAll()
+    }
 }

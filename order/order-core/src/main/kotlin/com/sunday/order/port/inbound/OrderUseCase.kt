@@ -28,9 +28,20 @@ interface OrderUseCase {
     fun getStock(productId: Long): Int
 
     /**
-     * 주문 생성
+     * 주문 생성 (비관적 락)
      */
-    fun createOrder(memberId: Long, productId: Long, quantity: Int): Order
+    fun createOrderWithPessimisticLock(memberId: Long, productId: Long, quantity: Int): Order
+
+    /**
+     * 주문 생성 (분산 락 + DB 재고)
+     */
+    fun createOrderWithDistributedLock(memberId: Long, productId: Long, quantity: Int): Order
+
+    /**
+     * 주문 생성 (비동기, Redis 재고 + Stream)
+     * @return reservationKey
+     */
+    fun createOrderAsync(memberId: Long, productId: Long, quantity: Int): String
 
     /**
      * 주문 조회

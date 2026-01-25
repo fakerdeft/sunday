@@ -21,17 +21,19 @@ class RedisStockRepository(
 
     companion object {
         private const val STOCK_KEY_PREFIX = "stock:product:"
+        private const val HOTDEAL_KEY_PREFIX = "hotdeal:"
         private const val RESERVATION_KEY_PREFIX = "reservation:"
+        private const val PURCHASED_USERS_KEY_PREFIX = "purchased_users:"
+        private const val ORDER_STREAM_KEY = "order:stream"
 
         /**
          * Lua 스크립트: 재고 확인 후 차감
-         * - 현재 재고 >= 요청 수량이면 차감 후 남은 수량 반환
-         * - 재고 부족이면 -1 반환
          */
         private val DECREASE_STOCK_SCRIPT = RedisScript.of<Long>(
             """
             local stock = tonumber(redis.call('GET', KEYS[1]) or '0')
             local quantity = tonumber(ARGV[1])
+
             if stock >= quantity then
                 return redis.call('DECRBY', KEYS[1], quantity)
             else
@@ -43,26 +45,81 @@ class RedisStockRepository(
 
         /**
          * Lua 스크립트: 재고 증가 (최대 재고 제한)
-         * - ARGV[1]: 증가시킬 수량
-         * - ARGV[2]: 최대 재고량 (없으면 -1)
-         *
-         * 로직:
-         * 1. 현재 재고 조회
-         * 2. 최대 재고 제한이 있고 (-1이 아니고), (현재 재고 + 증가량 > 최대 재고) 이면
-         *    -> 증가시키지 않고 현재 재고 반환 (또는 최대 재고로 맞춤? 여기서는 증가 안 함)
-         * 3. 아니면 INCRBY 수행
          */
         private val INCREASE_STOCK_SCRIPT = RedisScript.of<Long>(
             """
             local current_stock = tonumber(redis.call('GET', KEYS[1]) or '0')
             local quantity = tonumber(ARGV[1])
             local max_stock = tonumber(ARGV[2])
-            
+
             if max_stock ~= -1 and (current_stock + quantity > max_stock) then
                 return current_stock
             end
-            
+
             return redis.call('INCRBY', KEYS[1], quantity)
+            """.trimIndent(),
+            Long::class.java
+        )
+
+        /**
+         * Lua 스크립트: 원자적 주문 처리
+         * KEYS[1]: hotdeal:{productId} (Hash: stock, price, name)
+         * KEYS[2]: purchased_users:{productId}
+         * KEYS[3]: order:stream
+         *
+         * ARGV[1]: memberId
+         * ARGV[2]: quantity
+         * ARGV[3]: reservationKey
+         * ARGV[4]: productId
+         *
+         * @return 1: 성공, 0: 재고 부족, -1: 중복 요청, -2: 상품 없음
+         */
+        private val PROCESS_ORDER_ATOMIC_SCRIPT = RedisScript.of<Long>(
+            """
+            -- 1. 상품 정보 조회 (Redis Hash)
+            local productInfo = redis.call('HMGET', KEYS[1], 'stock', 'price', 'name')
+            local stock = tonumber(productInfo[1])
+            local price = productInfo[2]
+            local name = productInfo[3]
+
+            -- 상품이 없으면 -2 반환
+            if not stock or not price or not name then
+                return -2
+            end
+
+            -- 2. 중복 체크
+            local isMember = redis.call('SISMEMBER', KEYS[2], ARGV[1])
+            
+            if isMember == 1 then
+                return -1
+            end
+
+            -- 3. 재고 체크
+            local quantity = tonumber(ARGV[2])
+            
+            if stock < quantity then
+                return 0
+            end
+
+            -- 4. 재고 감소
+            redis.call('HINCRBY', KEYS[1], 'stock', -quantity)
+
+            -- 5. 구매자 목록에 추가
+            redis.call('SADD', KEYS[2], ARGV[1])
+
+            -- 6. 총액 계산 및 Stream 발행
+            local totalAmount = tonumber(price) * quantity
+            
+            redis.call('XADD', KEYS[3], '*',
+                'memberId', ARGV[1],
+                'quantity', ARGV[2],
+                'reservationKey', ARGV[3],
+                'productId', ARGV[4],
+                'productName', name,
+                'unitPrice', price,
+                'totalAmount', tostring(totalAmount))
+
+            return 1
             """.trimIndent(),
             Long::class.java
         )
@@ -140,7 +197,47 @@ class RedisStockRepository(
         return redisTemplate.delete(reservationKey(reservationKey))
     }
 
+    override fun initializeHotDeal(productId: Long, stock: Int, price: String, name: String) {
+        val key = hotdealKey(productId)
+        redisTemplate.opsForHash<String, String>().putAll(
+            key,
+            mapOf(
+                "stock" to stock.toString(),
+                "price" to price,
+                "name" to name
+            )
+        )
+    }
+
+    override fun processOrderAtomic(
+        productId: Long,
+        memberId: Long,
+        quantity: Int,
+        reservationKey: String
+    ): Int {
+        val result = redisTemplate.execute(
+            PROCESS_ORDER_ATOMIC_SCRIPT,
+            listOf(
+                hotdealKey(productId),
+                purchasedUsersKey(productId),
+                ORDER_STREAM_KEY
+            ),
+            memberId.toString(),
+            quantity.toString(),
+            reservationKey,
+            productId.toString()
+        )
+
+        return result?.toInt() ?: 0
+    }
+
+    override fun clearPurchasedUsers(productId: Long) {
+        redisTemplate.delete(purchasedUsersKey(productId))
+    }
+
     private fun stockKey(productId: Long) = "$STOCK_KEY_PREFIX$productId"
+    private fun hotdealKey(productId: Long) = "$HOTDEAL_KEY_PREFIX$productId"
+    private fun purchasedUsersKey(productId: Long) = "$PURCHASED_USERS_KEY_PREFIX$productId"
     private fun reservationKey(key: String) = "$RESERVATION_KEY_PREFIX$key"
     private fun generateReservationKey() = UUID.randomUUID().toString()
 }

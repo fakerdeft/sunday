@@ -4,5 +4,6 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":order:order-core"))
 
-    implementation(project(":support-infra"))
+    testImplementation(project(":order:order-infra"))
+    testImplementation(project(":support-infra"))
 }

@@ -20,6 +20,7 @@ class IntegrationTestSupport : ApplicationContextInitializer<ConfigurableApplica
             .withDatabaseName("sunday_order_test")
             .withUsername("test")
             .withPassword("test")
+            .withInitScript("init-schema.sql")
             .withReuse(true)
     }
 
@@ -33,7 +34,8 @@ class IntegrationTestSupport : ApplicationContextInitializer<ConfigurableApplica
             "spring.datasource.url=${POSTGRES_CONTAINER.jdbcUrl}",
             "spring.datasource.username=${POSTGRES_CONTAINER.username}",
             "spring.datasource.password=${POSTGRES_CONTAINER.password}",
-            "spring.datasource.driver-class-name=${POSTGRES_CONTAINER.driverClassName}"
+            "spring.datasource.driver-class-name=${POSTGRES_CONTAINER.driverClassName}",
+            "spring.jpa.hibernate.ddl-auto=create"
         ).applyTo(applicationContext.environment)
     }
 }

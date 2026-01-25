@@ -3,6 +3,7 @@ package com.sunday.order.domain
 import com.sunday.order.exception.InvalidProductNameException
 import com.sunday.order.exception.InvalidProductPriceException
 import com.sunday.order.exception.InvalidProductStockException
+import com.sunday.order.exception.OutOfStockException
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
@@ -69,5 +70,26 @@ data class Product(
                 hotDealEndTime != null &&
                 now.isAfter(hotDealStartTime) &&
                 now.isBefore(hotDealEndTime)
+    }
+
+    /**
+     * 재고 감소 (도메인 로직)
+     */
+    fun decreaseStock(quantity: Int) {
+        if (stock < quantity) {
+            throw OutOfStockException(id, quantity, stock)
+        }
+        stock -= quantity
+        updatedAt = LocalDateTime.now()
+    }
+
+    /**
+     * 재고 증가 (취소/만료 시 복구)
+     * - 최대 재고(totalQuantity)를 초과하지 않도록 제한
+     */
+    fun increaseStock(quantity: Int) {
+        val newStock = stock + quantity
+        stock = minOf(newStock, totalQuantity)
+        updatedAt = LocalDateTime.now()
     }
 }

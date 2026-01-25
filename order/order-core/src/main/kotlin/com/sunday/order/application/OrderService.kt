@@ -9,16 +9,19 @@ import com.sunday.order.exception.OutOfStockException
 import com.sunday.order.exception.ProductNotFoundException
 import com.sunday.order.port.inbound.OrderUseCase
 import com.sunday.order.port.outbound.OrderRepository
+import com.sunday.order.port.outbound.OrderStreamPublisher
 import com.sunday.order.port.outbound.ProductRepository
 import com.sunday.order.port.outbound.StockRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.util.*
 
 @Service
 class OrderService(
     private val productRepository: ProductRepository,
     private val orderRepository: OrderRepository,
-    private val stockRepository: StockRepository
+    private val stockRepository: StockRepository,
+    private val orderStreamPublisher: OrderStreamPublisher
 ) : OrderUseCase {
 
     companion object {
@@ -43,53 +46,112 @@ class OrderService(
 
     @Transactional(readOnly = true)
     override fun getStock(productId: Long): Int {
-        return stockRepository.getStock(productId)
+        val product = productRepository.findById(productId)
+            ?: throw ProductNotFoundException(productId)
+        return product.stock
     }
 
     /**
-     * 주문 생성
+     * 주문 생성 (비관적 락)
      */
     @Transactional
-    override fun createOrder(memberId: Long, productId: Long, quantity: Int): Order {
+    override fun createOrderWithPessimisticLock(memberId: Long, productId: Long, quantity: Int): Order {
         // 1. 중복 주문 체크
         if (orderRepository.existsPendingOrder(memberId, productId)) {
             throw DuplicatePendingOrderException(memberId, productId)
         }
 
         // 2. 상품 조회
-        val product = getProduct(productId)
+        val product = productRepository.findByIdWithPessimisticLock(productId)
+            ?: throw ProductNotFoundException(productId)
 
         // 3. 핫딜 활성화 확인
         if (product.isHotDeal && !product.isHotDealActive()) {
             throw HotDealNotActiveException(productId)
         }
 
-        // 4. Redis 재고 차감
-        stockRepository.decreaseStock(productId, quantity)
-            ?: throw OutOfStockException(productId, quantity, stockRepository.getStock(productId))
+        // 4. 재고 확인 및 차감
+        product.decreaseStock(quantity)
 
-        try {
-            // 5. 선점 키 생성
-            val reservationKey = stockRepository.createReservation(
-                productId = productId,
-                memberId = memberId,
-                quantity = quantity,
-                ttlSeconds = RESERVATION_TTL_SECONDS
-            )
+        productRepository.save(product)
 
-            // 6. Order 저장
-            val order = Order.create(
-                memberId = memberId,
-                product = product,
-                quantity = quantity,
-                reservationKey = reservationKey
-            )
+        // 5. Order 저장
+        // Redis 예약 키 대신 UUID 등을 임시로 사용하거나, 비관적 락 방식에서는 예약 키 개념이 다를 수 있음
+        // 여기서는 단순화를 위해 UUID 사용
+        val reservationKey = "db-lock:${UUID.randomUUID()}"
 
-            return orderRepository.save(order)
-        } catch (e: Exception) {
-            // 실패 시 재고 복구
-            stockRepository.increaseStock(productId, quantity)
-            throw e
+        val order = Order.create(
+            memberId = memberId,
+            product = product,
+            quantity = quantity,
+            reservationKey = reservationKey
+        )
+
+        return orderRepository.save(order)
+    }
+
+    /**
+     * 주문 생성
+     */
+    @Transactional
+    override fun createOrderWithDistributedLock(memberId: Long, productId: Long, quantity: Int): Order {
+        // 1. 중복 주문 체크
+        if (orderRepository.existsPendingOrder(memberId, productId)) {
+            throw DuplicatePendingOrderException(memberId, productId)
+        }
+
+        // 2. 상품 조회
+        val product = productRepository.findById(productId)
+            ?: throw ProductNotFoundException(productId)
+
+        // 3. 핫딜 활성화 확인
+        if (product.isHotDeal && !product.isHotDealActive()) {
+            throw HotDealNotActiveException(productId)
+        }
+
+        // 4. 재고 확인 및 차감
+        if (product.stock < quantity) {
+            throw OutOfStockException(productId, quantity, product.stock)
+        }
+        product.decreaseStock(quantity)
+        productRepository.save(product)
+
+        // 5. Order 저장
+        val reservationKey = "distributed-lock:${UUID.randomUUID()}"
+        val order = Order.create(
+            memberId = memberId,
+            product = product,
+            quantity = quantity,
+            reservationKey = reservationKey
+        )
+
+        return orderRepository.save(order)
+    }
+
+    /**
+     * 주문 생성 비동기 (Lua Script 아토믹 처리)
+     * - Lua 스크립트의 원자성으로 처리
+     * - 중복 체크 + 재고 차감 + Stream 발행
+     * - Consumer가 비동기로 DB에 주문 저장
+     */
+    override fun createOrderAsync(memberId: Long, productId: Long, quantity: Int): String {
+        // 1. 선점 키 생성
+        val reservationKey = "async:${UUID.randomUUID()}"
+
+        // 2. Lua Script 아토믹 처리 (Redis Hash에서 상품 정보 조회 + 중복체크 + 재고차감 + Stream 발행)
+        val result = stockRepository.processOrderAtomic(
+            productId = productId,
+            memberId = memberId,
+            quantity = quantity,
+            reservationKey = reservationKey
+        )
+
+        return when (result) {
+            1 -> reservationKey  // 성공
+            0 -> throw OutOfStockException(productId, quantity, stockRepository.getStock(productId))
+            -1 -> throw DuplicatePendingOrderException(memberId, productId)
+            -2 -> throw ProductNotFoundException(productId)  // Redis에 상품 정보 없음
+            else -> throw RuntimeException("Unexpected result from processOrderAtomic: $result")
         }
     }
 
@@ -114,15 +176,10 @@ class OrderService(
         // 취소 처리
         val cancelledOrder = order.markAsCancelled()
 
-        // 상품 정보 조회 (최대 재고 확인용)
+        // 상품 조회 및 재고 복구
         val product = getProduct(order.productId)
-
-        // 재고 복구 (최대 재고 제한 적용)
-        // totalQuantity를 기준으로 최대 재고 초과 방지
-        stockRepository.increaseStock(order.productId, order.quantity, product.totalQuantity)
-
-        // 선점 해제
-        stockRepository.releaseReservation(order.reservationKey)
+        product.increaseStock(order.quantity)
+        productRepository.save(product)
 
         return orderRepository.save(cancelledOrder)
     }
@@ -137,14 +194,11 @@ class OrderService(
         // 결제 완료 처리
         val paidOrder = order.markAsPaid()
 
-        // 선점 해제 (결제 완료로 더 이상 필요 없음)
-        stockRepository.releaseReservation(order.reservationKey)
-
         return orderRepository.save(paidOrder)
     }
 
     /**
-     * 만료된 주문 처리 (스케줄러에서 호출)
+     * 만료된 주문 처리
      */
     @Transactional
     override fun expireOrders(): Int {
@@ -152,15 +206,10 @@ class OrderService(
 
         expiredOrders.forEach { order ->
             try {
-                // 상품 정보 조회 (최대 재고 확인용)
+                // 상품 조회 및 재고 복구 (DB)
                 val product = getProduct(order.productId)
-
-                // 재고 복구 (최대 재고 제한 적용)
-                // totalQuantity를 기준으로 최대 재고 초과 방지
-                stockRepository.increaseStock(order.productId, order.quantity, product.totalQuantity)
-
-                // 선점 해제
-                stockRepository.releaseReservation(order.reservationKey)
+                product.increaseStock(order.quantity)
+                productRepository.save(product)
 
                 // 주문 상태 변경
                 val expiredOrder = order.markAsExpired()

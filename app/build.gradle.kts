@@ -20,4 +20,8 @@ dependencies {
     implementation(project(":order:order-core"))
     implementation(project(":order:order-api"))
     implementation(project(":order:order-infra"))
+
+    // Monitoring
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("io.micrometer:micrometer-registry-prometheus")
 }
