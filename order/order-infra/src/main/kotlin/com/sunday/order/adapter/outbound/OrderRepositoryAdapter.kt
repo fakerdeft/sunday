@@ -68,6 +68,10 @@ class OrderRepositoryAdapter(
         return jpaRepository.save(entity).toDomain()
     }
 
+    override fun findAll(): List<Order> {
+        return jpaRepository.findAll().map { it.toDomain() }
+    }
+
     override fun deleteAll() {
         jpaRepository.deleteAll()
     }

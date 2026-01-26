@@ -12,6 +12,7 @@ interface OrderRepository {
     fun findByStatus(status: OrderStatus): List<Order>
     fun findExpiredPendingOrders(): List<Order>
     fun existsPendingOrder(memberId: Long, productId: Long): Boolean
+    fun findAll(): List<Order>
     fun save(order: Order): Order
     fun deleteAll()
 }

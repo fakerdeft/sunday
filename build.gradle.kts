@@ -99,6 +99,7 @@ configure(subprojects.filter { it.name.endsWith("-api") }) {
         "testImplementation"("org.testcontainers:testcontainers:1.21.4")
         "testImplementation"("org.testcontainers:junit-jupiter:1.21.4")
         "testImplementation"("org.testcontainers:postgresql:1.21.4")
+        "testImplementation"("org.awaitility:awaitility-kotlin:4.3.0")
     }
 
     // 라이브러리 모듈 - 실행 불가
