@@ -60,10 +60,10 @@ class OrderStreamConsumer(
                 if (recordId != null) {
                     ops.delete(STREAM_KEY, recordId)
                 }
-                log.info("Created stream: $STREAM_KEY")
+                log.info("스트림 생성 완료: $STREAM_KEY")
             }
         } catch (e: Exception) {
-            log.warn("Failed to create stream: ${e.message}")
+            log.warn("스트림 생성 실패: ${e.message}")
         }
     }
 
@@ -71,10 +71,10 @@ class OrderStreamConsumer(
         try {
             redisTemplate.opsForStream<String, String>()
                 .createGroup(STREAM_KEY, ReadOffset.from("0"), GROUP_NAME)
-            log.info("Created consumer group: $GROUP_NAME")
+            log.info("컨슈머 그룹 생성 완료: $GROUP_NAME")
         } catch (e: Exception) {
             // 그룹이 이미 존재하는 경우
-            log.debug("Consumer group already exists: ${e.message}")
+            log.debug("컨슈머 그룹이 이미 존재함: ${e.message}")
         }
     }
 
@@ -96,7 +96,7 @@ class OrderStreamConsumer(
         )
 
         listenerContainer?.start()
-        log.info("Order stream consumer started")
+        log.info("주문 스트림 컨슈머 시작")
     }
 
     override fun onMessage(message: MapRecord<String, String, String>) {
@@ -128,7 +128,7 @@ class OrderStreamConsumer(
                 )
 
                 orderRepository.save(order)
-                log.debug("Order saved successfully: reservationKey=${order.reservationKey}")
+                log.debug("주문 저장 완료: reservationKey=${order.reservationKey}")
             }
 
             // ACK 처리 (트랜잭션 성공 후)
@@ -136,7 +136,7 @@ class OrderStreamConsumer(
                 .acknowledge(STREAM_KEY, GROUP_NAME, message.id)
 
         } catch (e: Exception) {
-            log.error("Failed to process order message: ${message.id}", e)
+            log.error("주문 메시지 처리 실패: ${message.id}", e)
             // 실패한 메시지는 ACK하지 않아 재처리됨
         }
     }

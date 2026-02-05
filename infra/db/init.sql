@@ -94,6 +94,7 @@ CREATE TABLE IF NOT EXISTS sunday.product (
     name VARCHAR(200) NOT NULL,
     price DECIMAL(19, 2) NOT NULL,
     stock INT NOT NULL DEFAULT 0,
+    total_quantity INT NOT NULL DEFAULT 0,
     is_hot_deal BOOLEAN NOT NULL DEFAULT FALSE,
     hot_deal_start_time TIMESTAMP,
     hot_deal_end_time TIMESTAMP,
@@ -167,12 +168,12 @@ ON CONFLICT (user_id) DO NOTHING;
 SELECT setval('sunday.account_id_seq', 3, true);
 
 -- 핫딜 상품 등록
-INSERT INTO sunday.product (id, name, price, stock, is_hot_deal, hot_deal_start_time, hot_deal_end_time) VALUES
-    (1, '🔥 [한정판] 에어팟 프로 2', 199000.00, 100, TRUE, NOW(), NOW() + INTERVAL '7 days'),
-    (2, '🔥 [특가] 맥북 에어 M3', 1290000.00, 50, TRUE, NOW(), NOW() + INTERVAL '7 days'),
-    (3, '🔥 [초특가] 아이패드 미니', 590000.00, 30, TRUE, NOW(), NOW() + INTERVAL '7 days'),
-    (4, '일반 상품 - 무선 마우스', 29000.00, 500, FALSE, NULL, NULL),
-    (5, '일반 상품 - USB 허브', 19000.00, 300, FALSE, NULL, NULL)
+INSERT INTO sunday.product (id, name, price, stock, total_quantity, is_hot_deal, hot_deal_start_time, hot_deal_end_time) VALUES
+    (1, '🔥 [한정판] 에어팟 프로 2', 199000.00, 100, 100, TRUE, NOW(), NOW() + INTERVAL '7 days'),
+    (2, '🔥 [특가] 맥북 에어 M3', 1290000.00, 50, 50, TRUE, NOW(), NOW() + INTERVAL '7 days'),
+    (3, '🔥 [초특가] 아이패드 미니', 590000.00, 30, 30, TRUE, NOW(), NOW() + INTERVAL '7 days'),
+    (4, '일반 상품 - 무선 마우스', 29000.00, 500, 500, FALSE, NULL, NULL),
+    (5, '일반 상품 - USB 허브', 19000.00, 300, 300, FALSE, NULL, NULL)
 ON CONFLICT (id) DO NOTHING;
 
 SELECT setval('sunday.product_id_seq', 5, true);
@@ -180,6 +181,7 @@ SELECT setval('sunday.product_id_seq', 5, true);
 -- =====================================================
 -- 권한 부여
 -- =====================================================
+ALTER USER sunday WITH REPLICATION;
 GRANT ALL PRIVILEGES ON SCHEMA sunday TO sunday;
 GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA sunday TO sunday;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA sunday TO sunday;
@@ -214,3 +216,28 @@ CREATE TRIGGER update_orders_updated_at BEFORE UPDATE ON sunday.orders
 DROP TRIGGER IF EXISTS update_payment_updated_at ON sunday.payment;
 CREATE TRIGGER update_payment_updated_at BEFORE UPDATE ON sunday.payment
     FOR EACH ROW EXECUTE FUNCTION sunday.update_updated_at_column();
+
+-- =====================================================
+-- 8. Outbox 테이블 (이벤트 발행 보장)
+-- =====================================================
+CREATE TABLE IF NOT EXISTS sunday.outbox (
+    id BIGSERIAL PRIMARY KEY,
+    aggregate_type VARCHAR(50) NOT NULL,
+    aggregate_id BIGINT NOT NULL,
+    event_type VARCHAR(100) NOT NULL,
+    payload JSONB NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    retry_count INT NOT NULL DEFAULT 0,
+    max_retries INT NOT NULL DEFAULT 3,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    published_at TIMESTAMP,
+    next_retry_at TIMESTAMP,
+    error_message TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_outbox_pending
+    ON sunday.outbox(status, next_retry_at) WHERE status = 'PENDING';
+CREATE INDEX IF NOT EXISTS idx_outbox_aggregate
+    ON sunday.outbox(aggregate_type, aggregate_id);
+
+DROP TRIGGER IF EXISTS update_outbox_updated_at ON sunday.outbox;

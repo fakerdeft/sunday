@@ -151,7 +151,7 @@ class OrderService(
             0 -> throw OutOfStockException(productId, quantity, stockRepository.getStock(productId))
             -1 -> throw DuplicatePendingOrderException(memberId, productId)
             -2 -> throw ProductNotFoundException(productId)  // Redis에 상품 정보 없음
-            else -> throw RuntimeException("Unexpected result from processOrderAtomic: $result")
+            else -> throw RuntimeException("주문 처리 중 예상치 못한 결과: $result")
         }
     }
 

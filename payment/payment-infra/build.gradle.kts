@@ -5,4 +5,5 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":account:account-core"))
     implementation(project(":order:order-core"))
+    implementation(project(":outbox"))
 }

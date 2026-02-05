@@ -3,11 +3,11 @@ package com.sunday.payment.application
 import com.sunday.payment.domain.Payment
 import com.sunday.payment.domain.PaymentStatus
 import com.sunday.payment.exception.OrderNotPayableException
-import com.sunday.payment.exception.PaymentLockAcquisitionException
 import com.sunday.payment.exception.PaymentNotFoundException
 import com.sunday.payment.port.outbound.AccountPort
 import com.sunday.payment.port.outbound.OrderInfo
 import com.sunday.payment.port.outbound.OrderPort
+import com.sunday.payment.port.outbound.OutboxPort
 import com.sunday.payment.port.outbound.PaymentLockRepository
 import com.sunday.payment.port.outbound.PaymentRepository
 import io.kotest.assertions.throwables.shouldThrow
@@ -24,7 +24,8 @@ class PaymentServiceTest : DescribeSpec({
     val paymentLockRepository = mockk<PaymentLockRepository>()
     val accountPort = mockk<AccountPort>(relaxed = true)
     val orderPort = mockk<OrderPort>(relaxed = true)
-    val paymentService = PaymentService(paymentRepository, paymentLockRepository, accountPort, orderPort)
+    val outboxPort = mockk<OutboxPort>(relaxed = true)
+    val paymentService = PaymentService(paymentRepository, paymentLockRepository, accountPort, orderPort, outboxPort)
 
     describe("processPayment") {
         context("이미 처리된 멱등성 키로 요청하면") {
@@ -46,23 +47,10 @@ class PaymentServiceTest : DescribeSpec({
             }
         }
 
-        context("락 획득에 실패하면") {
-            it("PaymentLockAcquisitionException이 발생한다") {
-                every { paymentRepository.findByIdempotencyKey("pay-key-123") } returns null
-                every { paymentLockRepository.acquireLock(100L, any()) } returns false
-
-                shouldThrow<PaymentLockAcquisitionException> {
-                    paymentService.processPayment(100L, 1L, "pay-key-123")
-                }
-            }
-        }
-
         context("주문이 결제 가능한 상태가 아니면") {
             it("OrderNotPayableException이 발생한다") {
                 every { paymentRepository.findByIdempotencyKey("pay-key-123") } returns null
-                every { paymentLockRepository.acquireLock(100L, any()) } returns true
                 every { paymentLockRepository.registerIdempotencyKey("pay-key-123", any()) } returns true
-                every { paymentLockRepository.releaseLock(100L) } returns Unit
                 every { orderPort.getOrderInfo(100L) } returns OrderInfo(
                     orderId = 100L,
                     memberId = 1L,
@@ -80,9 +68,7 @@ class PaymentServiceTest : DescribeSpec({
         context("다른 회원의 주문이면") {
             it("OrderNotPayableException이 발생한다") {
                 every { paymentRepository.findByIdempotencyKey("pay-key-123") } returns null
-                every { paymentLockRepository.acquireLock(100L, any()) } returns true
                 every { paymentLockRepository.registerIdempotencyKey("pay-key-123", any()) } returns true
-                every { paymentLockRepository.releaseLock(100L) } returns Unit
                 every { orderPort.getOrderInfo(100L) } returns OrderInfo(
                     orderId = 100L,
                     memberId = 999L,

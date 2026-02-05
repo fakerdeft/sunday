@@ -35,7 +35,9 @@ class IntegrationTestSupport : ApplicationContextInitializer<ConfigurableApplica
             "spring.datasource.username=${POSTGRES_CONTAINER.username}",
             "spring.datasource.password=${POSTGRES_CONTAINER.password}",
             "spring.datasource.driver-class-name=${POSTGRES_CONTAINER.driverClassName}",
-            "spring.jpa.hibernate.ddl-auto=create"
+            "spring.jpa.hibernate.ddl-auto=create",
+            "outbox.enabled=false",
+            "outbox.publisher.enabled=false"
         ).applyTo(applicationContext.environment)
     }
 }

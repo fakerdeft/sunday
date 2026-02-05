@@ -36,6 +36,6 @@ class RedisOrderStreamPublisher(
         val recordId: RecordId? = redisTemplate.opsForStream<String, String>()
             .add(STREAM_KEY, message)
 
-        return recordId?.value ?: throw RuntimeException("Failed to publish order to stream")
+        return recordId?.value ?: throw RuntimeException("주문 스트림 발행 실패")
     }
 }
