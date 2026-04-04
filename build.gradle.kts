@@ -75,9 +75,45 @@ configure(subprojects.filter { it.name.endsWith("-core") }) {
 }
 
 // ================================
-// API 모듈 (Inbound Adapter)
+// 분산 서버 모듈 (레이어드 아키텍처 - 루트 레벨 -api 모듈)
 // ================================
-configure(subprojects.filter { it.name.endsWith("-api") }) {
+configure(subprojects.filter { it.name.endsWith("-api") && it.parent?.name == rootProject.name }) {
+    apply(plugin = "org.springframework.boot")
+    apply(plugin = "io.spring.dependency-management")
+    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
+    apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
+
+    dependencies {
+        "implementation"("org.springframework.boot:spring-boot-starter-web")
+        "implementation"("org.springframework.boot:spring-boot-starter-validation")
+        "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
+        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
+        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
+        "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
+        "runtimeOnly"("org.postgresql:postgresql")
+        "implementation"("org.springframework.boot:spring-boot-starter-actuator")
+        "implementation"("io.micrometer:micrometer-registry-prometheus")
+
+        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
+        "testImplementation"("org.testcontainers:testcontainers:1.21.4")
+        "testImplementation"("org.testcontainers:junit-jupiter:1.21.4")
+        "testImplementation"("org.testcontainers:postgresql:1.21.4")
+    }
+
+    // 실행 가능한 서버 (bootJar 활성화)
+    tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
+        enabled = true
+    }
+
+    tasks.named<Jar>("jar") {
+        enabled = false
+    }
+}
+
+// ================================
+// 레거시 API 모듈 (Inbound Adapter - 헥사고날)
+// ================================
+configure(subprojects.filter { it.name.endsWith("-api") && it.parent?.name != rootProject.name }) {
     apply(plugin = "org.springframework.boot")
     apply(plugin = "io.spring.dependency-management")
     apply(plugin = "org.jetbrains.kotlin.plugin.spring")

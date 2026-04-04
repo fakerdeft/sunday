@@ -4,22 +4,22 @@ dependencies {
     implementation(project(":common"))
     implementation(project(":support-infra"))
 
-    // Member
-    implementation(project(":member:member-api"))
-    implementation(project(":member:member-infra"))
+    // Member (마이그레이션 완료 → member-api 독립 서버로 분리됨)
+    // implementation(project(":member:member-api"))
+    // implementation(project(":member:member-infra"))
 
-    // Account
-    implementation(project(":account:account-api"))
-    implementation(project(":account:account-infra"))
+    // Account (마이그레이션 완료 → account-api 독립 서버로 분리됨)
+    // implementation(project(":account:account-api"))
+    // implementation(project(":account:account-infra"))
 
-    // Payment
-    implementation(project(":payment:payment-api"))
-    implementation(project(":payment:payment-infra"))
+    // Payment (마이그레이션 완료 → payment-api 독립 서버로 분리됨)
+    // implementation(project(":payment:payment-api"))
+    // implementation(project(":payment:payment-infra"))
 
-    // Order
-    implementation(project(":order:order-core"))
-    implementation(project(":order:order-api"))
-    implementation(project(":order:order-infra"))
+    // Order (마이그레이션 완료 → order-api 독립 서버로 분리됨)
+    // implementation(project(":order:order-core"))
+    // implementation(project(":order:order-api"))
+    // implementation(project(":order:order-infra"))
 
     // Monitoring
     implementation("org.springframework.boot:spring-boot-starter-actuator")
