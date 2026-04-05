@@ -1,6 +1,0 @@
-// Account Infra - Repository Adapter (Outbound Adapter)
-
-dependencies {
-    implementation(project(":common"))
-    implementation(project(":account:account-core"))
-}

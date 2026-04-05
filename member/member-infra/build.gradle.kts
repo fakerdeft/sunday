@@ -1,6 +1,0 @@
-// Member Infra - Repository Adapter (Outbound Adapter)
-
-dependencies {
-    implementation(project(":common"))
-    implementation(project(":member:member-core"))
-}

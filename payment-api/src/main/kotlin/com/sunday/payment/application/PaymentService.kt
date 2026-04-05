@@ -1,7 +1,7 @@
 package com.sunday.payment.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.sunday.common.lock.DistributedLock
+import com.sunday.support.infra.lock.DistributedLock
 import com.sunday.payment.client.AccountClient
 import com.sunday.payment.client.OrderClient
 import com.sunday.payment.domain.Payment
@@ -12,14 +12,14 @@ import com.sunday.payment.domain.exception.PaymentAlreadyCompletedException
 import com.sunday.payment.domain.exception.PaymentNotFoundException
 import com.sunday.payment.domain.exception.PaymentNotFoundByOrderException
 import com.sunday.payment.domain.exception.PaymentProcessFailedException
+import com.sunday.payment.repository.OutboxAggregateType
+import com.sunday.payment.repository.OutboxEvent
+import com.sunday.payment.repository.OutboxEventType
+import com.sunday.payment.repository.OutboxRepository
+import com.sunday.payment.repository.PaymentCompletedPayload
+import com.sunday.payment.repository.PaymentRefundedPayload
 import com.sunday.payment.repository.PaymentRepository
 import com.sunday.payment.repository.RedisPaymentRepository
-import com.sunday.payment.repository.outbox.OutboxEvent
-import com.sunday.payment.repository.outbox.OutboxAggregateType
-import com.sunday.payment.repository.outbox.OutboxEventType
-import com.sunday.payment.repository.outbox.OutboxRepository
-import com.sunday.payment.repository.outbox.payload.PaymentCompletedPayload
-import com.sunday.payment.repository.outbox.payload.PaymentRefundedPayload
 import org.apache.logging.log4j.LogManager
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional

@@ -1,6 +1,6 @@
 package com.sunday.support.infra.lock
 
-import com.sunday.common.lock.DistributedLockManager
+import com.sunday.support.infra.lock.DistributedLockManager
 import org.redisson.api.RedissonClient
 import org.springframework.stereotype.Component
 import java.util.concurrent.TimeUnit

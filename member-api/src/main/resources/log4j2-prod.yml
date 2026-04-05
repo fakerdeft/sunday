@@ -1,0 +1,26 @@
+Configuration:
+  name: Prod-Logger
+  status: warn
+
+  Appenders:
+    Console:
+      name: Console_Appender
+      target: SYSTEM_OUT
+      JsonLayout:
+        compact: true
+        eventEol: true
+        properties: true
+        stacktraceAsString: true
+        includeTimeMillis: true
+
+  Loggers:
+    Root:
+      level: INFO
+      AppenderRef:
+        ref: Console_Appender
+    Logger:
+      - name: com.sunday
+        additivity: false
+        level: INFO
+        AppenderRef:
+          ref: Console_Appender

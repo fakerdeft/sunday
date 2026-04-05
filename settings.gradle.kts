@@ -1,7 +1,7 @@
-rootProject.name = "Sunday-Server"
+rootProject.name = "sunday-server"
 
 // 실행 모듈 (레거시 - 마이그레이션 완료 후 제거 예정)
-include("app")
+//include("app")
 
 // 공통 모듈
 include("common")

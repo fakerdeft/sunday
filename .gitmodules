@@ -1,0 +1,3 @@
+[submodule "sunday-config"]
+	path = sunday-config
+	url = https://github.com/fakerdeft/sunday-config.git

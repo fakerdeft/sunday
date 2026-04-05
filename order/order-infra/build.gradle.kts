@@ -1,6 +1,0 @@
-// Order Infra - Repository Adapter (Outbound Adapter)
-
-dependencies {
-    implementation(project(":order:order-core"))
-    implementation(project(":common"))
-}

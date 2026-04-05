@@ -1,5 +1,4 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.springframework.boot.gradle.tasks.bundling.BootJar
 
 plugins {
     id("org.springframework.boot") version "4.0.1" apply false
@@ -57,27 +56,9 @@ subprojects {
 }
 
 // ================================
-// Core 모듈 (Domain + Application Service)
-// ================================
-configure(subprojects.filter { it.name.endsWith("-core") }) {
-    apply(plugin = "org.springframework.boot")
-    apply(plugin = "io.spring.dependency-management")
-    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
-
-    // 라이브러리 모듈 - 실행 불가
-    tasks.named<BootJar>("bootJar") {
-        enabled = false
-    }
-
-    tasks.named<Jar>("jar") {
-        enabled = true
-    }
-}
-
-// ================================
 // 분산 서버 모듈 (레이어드 아키텍처 - 루트 레벨 -api 모듈)
 // ================================
-configure(subprojects.filter { it.name.endsWith("-api") && it.parent?.name == rootProject.name }) {
+configure(subprojects.filter { it.name.endsWith("-api") }) {
     apply(plugin = "org.springframework.boot")
     apply(plugin = "io.spring.dependency-management")
     apply(plugin = "org.jetbrains.kotlin.plugin.spring")
@@ -110,151 +91,31 @@ configure(subprojects.filter { it.name.endsWith("-api") && it.parent?.name == ro
     }
 }
 
+
 // ================================
-// 레거시 API 모듈 (Inbound Adapter - 헥사고날)
+// Servers - 개별 서버 실행 태스크
 // ================================
-configure(subprojects.filter { it.name.endsWith("-api") && it.parent?.name != rootProject.name }) {
-    apply(plugin = "org.springframework.boot")
-    apply(plugin = "io.spring.dependency-management")
-    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
-
-    dependencies {
-        // Spring Boot
-        "implementation"("org.springframework.boot:spring-boot-starter-web")
-        "implementation"("org.springframework.boot:spring-boot-starter-validation")
-
-        // Log4j2
-        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
-        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
-
-        // JSON
-        "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
-
-        // Test
-        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
-        "testImplementation"("org.testcontainers:testcontainers:1.21.4")
-        "testImplementation"("org.testcontainers:junit-jupiter:1.21.4")
-        "testImplementation"("org.testcontainers:postgresql:1.21.4")
-        "testImplementation"("org.awaitility:awaitility-kotlin:4.3.0")
-    }
-
-    // 라이브러리 모듈 - 실행 불가
-    tasks.named<BootJar>("bootJar") {
-        enabled = false
-    }
-
-    tasks.named<Jar>("jar") {
-        enabled = true
-    }
+tasks.register("memberApi") {
+    group = "servers"
+    description = "Start member-api (port 8081)"
+    dependsOn(":member-api:bootRun")
 }
 
-// ================================
-// Infra 모듈 (Outbound Adapter)
-// ================================
-configure(subprojects.filter { it.name.endsWith("-infra") }) {
-    apply(plugin = "org.springframework.boot")
-    apply(plugin = "io.spring.dependency-management")
-    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
-    apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
-    apply(plugin = "org.jetbrains.kotlin.kapt")
-
-    dependencies {
-        // Spring Boot
-        "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
-        "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
-
-        // Log4j2
-        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
-        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
-
-        // PostgreSQL
-        "runtimeOnly"("org.postgresql:postgresql")
-
-        // QueryDSL
-        "implementation"("io.github.openfeign.querydsl:querydsl-jpa:$queryDslVersion")
-        "implementation"("io.github.openfeign.querydsl:querydsl-core:$queryDslVersion")
-        "kapt"("io.github.openfeign.querydsl:querydsl-apt:$queryDslVersion:jakarta")
-        "kapt"("jakarta.annotation:jakarta.annotation-api")
-        "kapt"("jakarta.persistence:jakarta.persistence-api")
-
-        // Test
-        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
-    }
-
-    // 라이브러리 모듈 - 실행 불가
-    tasks.named<BootJar>("bootJar") {
-        enabled = false
-    }
-
-    tasks.named<Jar>("jar") {
-        enabled = true
-    }
+tasks.register("accountApi") {
+    group = "servers"
+    description = "Start account-api (port 8082)"
+    dependsOn(":account-api:bootRun")
 }
 
-// ================================
-// Batch 모듈 (Scheduler Jobs)
-// ================================
-configure(subprojects.filter { it.name.endsWith("-batch") }) {
-    apply(plugin = "org.springframework.boot")
-    apply(plugin = "io.spring.dependency-management")
-    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
-    apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
-
-    dependencies {
-        // Spring Boot
-        "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
-        "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
-
-        // Log4j2
-        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
-        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
-
-        // PostgreSQL
-        "runtimeOnly"("org.postgresql:postgresql")
-
-        // Test
-        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
-    }
-
-    // 라이브러리 모듈 - 실행 불가
-    tasks.named<BootJar>("bootJar") {
-        enabled = false
-    }
-
-    tasks.named<Jar>("jar") {
-        enabled = true
-    }
+tasks.register("orderApi") {
+    group = "servers"
+    description = "Start order-api (port 8083)"
+    dependsOn(":order-api:bootRun")
 }
 
-// ================================
-// App 모듈 (실행)
-// ================================
-configure(subprojects.filter { it.name == "app" }) {
-    apply(plugin = "org.springframework.boot")
-    apply(plugin = "io.spring.dependency-management")
-    apply(plugin = "org.jetbrains.kotlin.plugin.spring")
-    apply(plugin = "org.jetbrains.kotlin.plugin.jpa")
-
-    dependencies {
-        // Spring Boot
-        "implementation"("org.springframework.boot:spring-boot-starter-web")
-        "implementation"("org.springframework.boot:spring-boot-starter-data-jpa")
-        "implementation"("org.springframework.boot:spring-boot-starter-data-redis")
-
-        // Log4j2
-        "implementation"("org.springframework.boot:spring-boot-starter-log4j2")
-        "implementation"("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
-
-        // JSON
-        "implementation"("com.fasterxml.jackson.module:jackson-module-kotlin")
-
-        // PostgreSQL
-        "runtimeOnly"("org.postgresql:postgresql")
-
-        // QueryDSL
-        "implementation"("io.github.openfeign.querydsl:querydsl-jpa:$queryDslVersion")
-
-        // Test
-        "testImplementation"("org.springframework.boot:spring-boot-starter-test")
-    }
+tasks.register("paymentApi") {
+    group = "servers"
+    description = "Start payment-api (port 8084)"
+    dependsOn(":payment-api:bootRun")
 }
+

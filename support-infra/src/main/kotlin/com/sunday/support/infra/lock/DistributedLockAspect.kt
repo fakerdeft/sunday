@@ -1,8 +1,8 @@
 package com.sunday.support.infra.lock
 
-import com.sunday.common.lock.DistributedLock
-import com.sunday.common.lock.DistributedLockManager
-import com.sunday.common.lock.LockAcquisitionException
+import com.sunday.support.infra.lock.DistributedLock
+import com.sunday.support.infra.lock.DistributedLockManager
+import com.sunday.support.infra.lock.LockAcquisitionException
 import org.aspectj.lang.ProceedingJoinPoint
 import org.aspectj.lang.annotation.Around
 import org.aspectj.lang.annotation.Aspect

@@ -1,6 +1,6 @@
 package com.sunday.order.presentation
 
-import com.sunday.common.lock.DistributedLock
+import com.sunday.support.infra.lock.DistributedLock
 import com.sunday.order.application.OrderService
 import com.sunday.order.application.TestService
 import com.sunday.order.presentation.dto.AsyncOrderResponse

@@ -14,6 +14,9 @@ dependencies {
 
     // Redisson
     implementation("org.redisson:redisson-spring-boot-starter:4.1.0")
+
+    // AOP (DistributedLockAspect, AopForTransaction, CustomSpringELParser)
+    implementation("org.springframework.boot:spring-boot-starter-aspectj")
 }
 
 // 라이브러리 모듈 - 실행 불가

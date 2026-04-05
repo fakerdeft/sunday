@@ -47,6 +47,11 @@ build/
 # Spring Boot
 HELP.md
 
+# Config files (managed via sunday-config submodule)
+**/src/main/resources/application*.yml
+infra/
+load-test/
+
 # Claude Code
 .claude/
 .claude/CLAUDE.md
