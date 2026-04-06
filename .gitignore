@@ -49,7 +49,7 @@ HELP.md
 
 # Config files (managed via sunday-config submodule)
 **/src/main/resources/application*.yml
-infra/
+/infra/
 load-test/
 
 # Claude Code
