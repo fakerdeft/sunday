@@ -8,36 +8,37 @@
 
 ## 🗽 Architecture
 
-### 멀티 모듈 & 헥사고날 아키텍처
+### 독립 분산 서버 구조 (레이어드 아키텍처)
 
-도메인 간의 결합도를 낮추고, 추후 MSA 전환을 용이하게 하기 위해 모듈과 계층 분리를 적용했습니다.
+도메인별 독립 서버로 분리하여 추후 MSA 전환을 용이하게 하고, 각 서버는 Presentation → Application → Domain → Repository 레이어드 아키텍처로 구성했습니다.
 
 ```
 Sunday-Server
-├── app                 # 실행 가능한 Spring Boot 애플리케이션
-├── common              # 공통 유틸리티, 예외 처리
-├── member              # [Domain] 회원 관리
-│   ├── member-core         # 순수 비즈니스 로직 (도메인, 포트)
-│   ├── member-api          # REST 컨트롤러, DTO (Inbound Adapter)
-│   └── member-infra        # JPA, Redis 어댑터 (Outbound Adapter)
-├── account             # [Domain] 계좌, 송금, 정산
-│   ├── account-core
-│   ├── account-api
-│   └── account-infra
-├── payment             # [Domain] 결제
-│   ├── payment-core
-│   ├── payment-api
-│   └── payment-infra
-└── order               # [Domain] 상품, 주문, 재고
-    ├── order-core
-    ├── order-api
-    ├── order-infra
-    └── order-batch     # 스케줄러
+├── common              # 공통 예외 인터페이스, 에러 응답 DTO
+├── support-infra       # 분산 락 AOP (Redisson 기반)
+├── member-api          # 회원 서비스 (port: 8081)
+│   ├── presentation        # REST 컨트롤러, DTO
+│   ├── application         # 비즈니스 로직
+│   ├── domain              # 도메인 모델, 예외
+│   └── repository          # JPA Entity, Repository
+├── account-api         # 계좌/송금 서비스 (port: 8082)
+│   ├── presentation
+│   ├── application
+│   ├── domain
+│   └── repository
+├── order-api           # 주문/재고 서비스 (port: 8083)
+│   ├── presentation
+│   ├── application
+│   ├── domain
+│   ├── repository          # JPA + Redis 재고 저장소
+│   └── config/scheduler    # 만료 주문 처리, 재고 동기화
+└── payment-api         # 결제 서비스 (port: 8084)
+    ├── presentation
+    ├── application
+    ├── domain
+    ├── repository          # JPA + Outbox + Redis 멱등성
+    └── client              # Account/Order API 호출
 ```
-
-* **Core 모듈**: 순수 비즈니스 로직 (도메인 모델, 유스케이스, 포트 인터페이스)
-* **API 모듈**: REST 컨트롤러, 요청/응답 DTO (Inbound Adapter)
-* **Infra 모듈**: DB, Redis 등 기술적 구현체 (Outbound Adapter)
 
 ## 🛠 Tech Stack
 
@@ -45,7 +46,7 @@ Sunday-Server
 - **Framework**: Spring Boot 4.0.1
 - **Database**: PostgreSQL 17
 - **Cache & Lock**: Redis 7
-- **Architecture**: Multi-module Monolith, Hexagonal Architecture
+- **Architecture**: Multi-module, Layered Architecture (독립 분산 서버)
 - **Testing**: JMeter, JUnit5, Kotest
 - **Infra**: AWS EC2, RDS, Docker Compose
 

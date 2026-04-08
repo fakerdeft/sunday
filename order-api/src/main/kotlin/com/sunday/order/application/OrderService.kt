@@ -1,18 +1,14 @@
 package com.sunday.order.application
 
-import com.sunday.order.domain.Order
-import com.sunday.order.domain.Product
-import com.sunday.order.domain.DuplicatePendingOrderException
-import com.sunday.order.domain.HotDealNotActiveException
-import com.sunday.order.domain.OrderNotFoundException
-import com.sunday.order.domain.OutOfStockException
-import com.sunday.order.domain.ProductNotFoundException
+import com.sunday.order.domain.*
 import com.sunday.order.repository.OrderRepository
 import com.sunday.order.repository.ProductRepository
 import com.sunday.order.repository.RedisStockRepository
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.context.ApplicationContext
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
+import java.util.*
 
 @Service
 class OrderService(
@@ -20,6 +16,13 @@ class OrderService(
     private val orderRepository: OrderRepository,
     private val stockRepository: RedisStockRepository
 ) {
+    @Autowired
+    private lateinit var applicationContext: ApplicationContext
+
+    private val self: OrderService get() = applicationContext.getBean(OrderService::class.java)
+
+    private val lock = Any()
+
     companion object {
         private const val RESERVATION_TTL_SECONDS = 300L
     }
@@ -41,11 +44,40 @@ class OrderService(
         return stockRepository.getStock(productId)
     }
 
+    fun createOrderWithSynchronized(memberId: Long, productId: Long, quantity: Int): Order {
+        synchronized(lock) {
+            return self.createOrderTransactional(memberId, productId, quantity, "synchronized")
+        }
+    }
+
+    @Transactional
+    fun createOrderTransactional(memberId: Long, productId: Long, quantity: Int, prefix: String): Order {
+        if (orderRepository.existsPendingOrder(memberId, productId)) throw DuplicatePendingOrderException(
+            memberId,
+            productId
+        )
+
+        val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
+
+        if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(productId)
+        if (product.stock < quantity) throw OutOfStockException(productId, quantity, product.stock)
+
+        product.decreaseStock(quantity)
+        productRepository.save(product)
+
+        val order = Order.create(memberId, product, quantity, "$prefix:${UUID.randomUUID()}")
+        return orderRepository.save(order)
+    }
+
     @Transactional
     fun createOrderWithPessimisticLock(memberId: Long, productId: Long, quantity: Int): Order {
-        if (orderRepository.existsPendingOrder(memberId, productId)) throw DuplicatePendingOrderException(memberId, productId)
+        if (orderRepository.existsPendingOrder(memberId, productId)) throw DuplicatePendingOrderException(
+            memberId,
+            productId
+        )
 
-        val product = productRepository.findByIdWithPessimisticLock(productId) ?: throw ProductNotFoundException(productId)
+        val product =
+            productRepository.findByIdWithPessimisticLock(productId) ?: throw ProductNotFoundException(productId)
 
         if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(productId)
 
@@ -58,7 +90,10 @@ class OrderService(
 
     @Transactional
     fun createOrderWithDistributedLock(memberId: Long, productId: Long, quantity: Int): Order {
-        if (orderRepository.existsPendingOrder(memberId, productId)) throw DuplicatePendingOrderException(memberId, productId)
+        if (orderRepository.existsPendingOrder(memberId, productId)) throw DuplicatePendingOrderException(
+            memberId,
+            productId
+        )
 
         val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
 
@@ -75,9 +110,7 @@ class OrderService(
 
     fun createOrderAsync(memberId: Long, productId: Long, quantity: Int): String {
         val reservationKey = "async:${UUID.randomUUID()}"
-        val result = stockRepository.processOrderAtomic(productId, memberId, quantity, reservationKey)
-
-        return when (result) {
+        return when (val result = stockRepository.processOrderAtomic(productId, memberId, quantity, reservationKey)) {
             1 -> reservationKey
             0 -> throw OutOfStockException(productId, quantity, stockRepository.getStock(productId))
             -1 -> throw DuplicatePendingOrderException(memberId, productId)

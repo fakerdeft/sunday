@@ -89,6 +89,14 @@ configure(subprojects.filter { it.name.endsWith("-api") }) {
     tasks.named<Jar>("jar") {
         enabled = false
     }
+
+    // sunday-config 서브모듈 설정 파일 로드
+    tasks.withType<org.springframework.boot.gradle.tasks.run.BootRun> {
+        val moduleName = project.name
+        val configDir = rootProject.projectDir.resolve("sunday-config/config/$moduleName")
+        args("--spring.profiles.active=local")
+        args("--spring.config.additional-location=${configDir.toURI()}/")
+    }
 }
 
 

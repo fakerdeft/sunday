@@ -43,6 +43,15 @@ class OrderController(
         return ProductResponse.from(product, orderService.getStock(productId))
     }
 
+    @PostMapping("/synchronized")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createOrderWithSynchronized(
+        @RequestHeader("X-USER-ID") userId: String,
+        @RequestBody request: CreateOrderRequest
+    ): OrderResponse {
+        return OrderResponse.from(orderService.createOrderWithSynchronized(userId.toLong(), request.productId, request.quantity))
+    }
+
     @PostMapping("/pessimistic")
     @ResponseStatus(HttpStatus.CREATED)
     fun createOrderWithPessimistic(
