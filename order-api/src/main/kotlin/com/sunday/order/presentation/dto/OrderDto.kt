@@ -9,12 +9,6 @@ data class CreateOrderRequest(
     val quantity: Int = 1
 )
 
-data class AsyncOrderResponse(
-    val status: String = "PROCESSING",
-    val reservationKey: String,
-    val message: String = "주문이 접수되었습니다. 잠시 후 주문 내역을 확인해주세요."
-)
-
 data class ProductResponse(
     val id: Long,
     val name: String,
@@ -26,11 +20,11 @@ data class ProductResponse(
     val hotDealEndTime: String?
 ) {
     companion object {
-        fun from(product: Product, currentStock: Int): ProductResponse = ProductResponse(
+        fun from(product: Product): ProductResponse = ProductResponse(
             id = product.id,
             name = product.name,
             price = product.price,
-            stock = currentStock,
+            stock = product.stock,
             isHotDeal = product.isHotDeal,
             hotDealActive = product.isHotDealActive(),
             hotDealStartTime = product.hotDealStartTime?.toString(),

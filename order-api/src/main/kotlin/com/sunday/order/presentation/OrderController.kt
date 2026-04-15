@@ -3,7 +3,6 @@ package com.sunday.order.presentation
 import com.sunday.support.infra.lock.DistributedLock
 import com.sunday.order.application.OrderService
 import com.sunday.order.application.TestService
-import com.sunday.order.presentation.dto.AsyncOrderResponse
 import com.sunday.order.presentation.dto.CreateOrderRequest
 import com.sunday.order.presentation.dto.OrderResponse
 import com.sunday.order.presentation.dto.ProductResponse
@@ -27,20 +26,19 @@ class OrderController(
     @GetMapping("/products")
     @ResponseStatus(HttpStatus.OK)
     fun getProducts(): List<ProductResponse> {
-        return orderService.getProducts().map { ProductResponse.from(it, orderService.getStock(it.id)) }
+        return orderService.getProducts().map { ProductResponse.from(it) }
     }
 
     @GetMapping("/products/hot-deals")
     @ResponseStatus(HttpStatus.OK)
     fun getHotDeals(): List<ProductResponse> {
-        return orderService.getHotDeals().map { ProductResponse.from(it, orderService.getStock(it.id)) }
+        return orderService.getHotDeals().map { ProductResponse.from(it) }
     }
 
     @GetMapping("/products/{productId}")
     @ResponseStatus(HttpStatus.OK)
     fun getProduct(@PathVariable productId: Long): ProductResponse {
-        val product = orderService.getProduct(productId)
-        return ProductResponse.from(product, orderService.getStock(productId))
+        return ProductResponse.from(orderService.getProduct(productId))
     }
 
     @PostMapping("/synchronized")
@@ -69,16 +67,6 @@ class OrderController(
         @RequestBody request: CreateOrderRequest
     ): OrderResponse {
         return OrderResponse.from(orderService.createOrderWithDistributedLock(userId.toLong(), request.productId, request.quantity))
-    }
-
-    @PostMapping("/async")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    fun createOrderAsync(
-        @RequestHeader("X-USER-ID") userId: String,
-        @RequestBody request: CreateOrderRequest
-    ): AsyncOrderResponse {
-        val reservationKey = orderService.createOrderAsync(userId.toLong(), request.productId, request.quantity)
-        return AsyncOrderResponse(reservationKey = reservationKey)
     }
 
     @GetMapping("/{orderId}")
