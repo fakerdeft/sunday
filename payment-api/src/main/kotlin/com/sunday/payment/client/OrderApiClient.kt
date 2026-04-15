@@ -7,7 +7,7 @@ import java.math.BigDecimal
 import java.time.LocalDateTime
 
 @Component
-class OrderClient(
+class OrderApiClient(
     @Value("\${clients.order-api.url}") orderApiUrl: String
 ) {
     private val restClient = RestClient.builder()

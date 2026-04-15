@@ -6,7 +6,7 @@ import org.springframework.web.client.RestClient
 import java.math.BigDecimal
 
 @Component
-class AccountClient(
+class AccountApiClient(
     @Value("\${clients.account-api.url}") accountApiUrl: String
 ) {
     private val restClient = RestClient.builder()
