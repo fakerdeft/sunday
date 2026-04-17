@@ -37,8 +37,25 @@ class AccountJpaEntity(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now()
 ) {
-    fun updateFrom(account: Account) {
-        this.balance = account.balance
-        this.updatedAt = account.updatedAt
+    companion object {
+        fun from(domain: Account): AccountJpaEntity = AccountJpaEntity(
+            id = domain.id,
+            memberId = domain.memberId,
+            userId = domain.userId,
+            balance = domain.balance,
+            version = domain.version,
+            createdAt = domain.createdAt,
+            updatedAt = domain.updatedAt
+        )
     }
+
+    fun toDomain(): Account = Account(
+        id = id,
+        memberId = memberId,
+        userId = userId,
+        balance = balance,
+        version = version,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
 }

@@ -5,37 +5,20 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 @Repository
-class TransferRepository(
-    private val transferJpaRepository: TransferJpaRepository,
-    private val transferMapper: TransferMapper
-) {
+class TransferRepository(private val jpaRepository: TransferJpaRepository) {
 
-    fun findById(id: Long): Transfer? {
-        return transferJpaRepository.findByIdOrNull(id)?.let { transferMapper.toDomain(it) }
-    }
+    fun findById(id: Long): Transfer? =
+        jpaRepository.findByIdOrNull(id)?.toDomain()
 
-    fun findByIdempotencyKey(idempotencyKey: String): Transfer? {
-        return transferJpaRepository.findByIdempotencyKey(idempotencyKey)?.let { transferMapper.toDomain(it) }
-    }
+    fun findByIdempotencyKey(idempotencyKey: String): Transfer? =
+        jpaRepository.findByIdempotencyKey(idempotencyKey)?.toDomain()
 
-    fun findBySenderMemberId(memberId: Long): List<Transfer> {
-        return transferJpaRepository.findBySenderMemberIdOrderByCreatedAtDesc(memberId)
-            .map { transferMapper.toDomain(it) }
-    }
+    fun findBySenderMemberId(memberId: Long): List<Transfer> =
+        jpaRepository.findBySenderMemberIdOrderByCreatedAtDesc(memberId).map { it.toDomain() }
 
-    fun findByReceiverMemberId(memberId: Long): List<Transfer> {
-        return transferJpaRepository.findByReceiverMemberIdOrderByCreatedAtDesc(memberId)
-            .map { transferMapper.toDomain(it) }
-    }
+    fun findByReceiverMemberId(memberId: Long): List<Transfer> =
+        jpaRepository.findByReceiverMemberIdOrderByCreatedAtDesc(memberId).map { it.toDomain() }
 
-    fun save(transfer: Transfer): Transfer {
-        val entity = if (transfer.id == 0L) {
-            transferMapper.toEntity(transfer)
-        } else {
-            transferJpaRepository.findByIdOrNull(transfer.id)?.apply {
-                updateFrom(transfer)
-            } ?: transferMapper.toEntity(transfer)
-        }
-        return transferMapper.toDomain(transferJpaRepository.save(entity))
-    }
+    fun save(domain: Transfer): Transfer =
+        jpaRepository.save(TransferJpaEntity.from(domain)).toDomain()
 }

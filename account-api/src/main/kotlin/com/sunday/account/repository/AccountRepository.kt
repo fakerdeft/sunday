@@ -5,40 +5,23 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 @Repository
-class AccountRepository(
-    private val accountJpaRepository: AccountJpaRepository,
-    private val accountMapper: AccountMapper
-) {
+class AccountRepository(private val jpaRepository: AccountJpaRepository) {
 
-    fun findById(id: Long): Account? {
-        return accountJpaRepository.findByIdOrNull(id)?.let { accountMapper.toDomain(it) }
-    }
+    fun findById(id: Long): Account? =
+        jpaRepository.findByIdOrNull(id)?.toDomain()
 
-    fun findByMemberId(memberId: Long): Account? {
-        return accountJpaRepository.findByMemberId(memberId)?.let { accountMapper.toDomain(it) }
-    }
+    fun findByMemberId(memberId: Long): Account? =
+        jpaRepository.findByMemberId(memberId)?.toDomain()
 
-    fun findByUserId(userId: String): Account? {
-        return accountJpaRepository.findByUserId(userId)?.let { accountMapper.toDomain(it) }
-    }
+    fun findByUserId(userId: String): Account? =
+        jpaRepository.findByUserId(userId)?.toDomain()
 
-    fun save(account: Account): Account {
-        val entity = if (account.id == 0L) {
-            accountMapper.toEntity(account)
-        } else {
-            val existingEntity = accountJpaRepository.findByIdOrNull(account.id)
-                ?: throw IllegalStateException("Account not found for update: ${account.id}")
-            existingEntity.updateFrom(account)
-            existingEntity
-        }
-        return accountMapper.toDomain(accountJpaRepository.save(entity))
-    }
+    fun save(domain: Account): Account =
+        jpaRepository.save(AccountJpaEntity.from(domain)).toDomain()
 
-    fun existsByMemberId(memberId: Long): Boolean {
-        return accountJpaRepository.existsByMemberId(memberId)
-    }
+    fun existsByMemberId(memberId: Long): Boolean =
+        jpaRepository.existsByMemberId(memberId)
 
-    fun existsByUserId(userId: String): Boolean {
-        return accountJpaRepository.existsByUserId(userId)
-    }
+    fun existsByUserId(userId: String): Boolean =
+        jpaRepository.existsByUserId(userId)
 }

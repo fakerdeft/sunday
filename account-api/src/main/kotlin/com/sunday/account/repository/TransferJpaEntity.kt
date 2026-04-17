@@ -1,17 +1,15 @@
 package com.sunday.account.repository
 
+import com.sunday.account.domain.Transfer
 import com.sunday.account.domain.TransferStatus
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
-import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Index
-import jakarta.persistence.JoinColumn
-import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import java.math.BigDecimal
 import java.time.LocalDateTime
@@ -31,19 +29,11 @@ class TransferJpaEntity(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0L,
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "sender_account_id", nullable = false, insertable = false, updatable = false)
-    val senderAccount: AccountJpaEntity? = null,
-
     @Column(name = "sender_account_id", nullable = false)
     val senderAccountId: Long,
 
     @Column(name = "sender_member_id", nullable = false)
     val senderMemberId: Long,
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "receiver_account_id", nullable = false, insertable = false, updatable = false)
-    val receiverAccount: AccountJpaEntity? = null,
 
     @Column(name = "receiver_account_id", nullable = false)
     val receiverAccountId: Long,
@@ -73,9 +63,35 @@ class TransferJpaEntity(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now()
 ) {
-    fun updateFrom(transfer: com.sunday.account.domain.Transfer) {
-        this.status = transfer.status
-        this.failureReason = transfer.failureReason
-        this.updatedAt = transfer.updatedAt
+    companion object {
+        fun from(domain: Transfer): TransferJpaEntity = TransferJpaEntity(
+            id = domain.id,
+            senderAccountId = domain.senderAccountId,
+            senderMemberId = domain.senderMemberId,
+            receiverAccountId = domain.receiverAccountId,
+            receiverMemberId = domain.receiverMemberId,
+            amount = domain.amount,
+            status = domain.status,
+            idempotencyKey = domain.idempotencyKey,
+            description = domain.description,
+            failureReason = domain.failureReason,
+            createdAt = domain.createdAt,
+            updatedAt = domain.updatedAt
+        )
     }
+
+    fun toDomain(): Transfer = Transfer(
+        id = id,
+        senderAccountId = senderAccountId,
+        senderMemberId = senderMemberId,
+        receiverAccountId = receiverAccountId,
+        receiverMemberId = receiverMemberId,
+        amount = amount,
+        status = status,
+        idempotencyKey = idempotencyKey,
+        description = description,
+        failureReason = failureReason,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
 }

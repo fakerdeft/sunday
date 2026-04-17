@@ -1,28 +1,34 @@
 package com.sunday.account.repository
 
+import com.querydsl.jpa.impl.JPAQueryFactory
 import com.sunday.account.domain.AccountTransaction
+import com.sunday.account.repository.QAccountTransactionJpaEntity.accountTransactionJpaEntity
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Repository
 
 @Repository
 class AccountTransactionRepository(
-    private val accountTransactionJpaRepository: AccountTransactionJpaRepository,
-    private val accountTransactionMapper: AccountTransactionMapper
+    private val jpaRepository: AccountTransactionJpaRepository,
+    private val accountJpaRepository: AccountJpaRepository,
+    private val queryFactory: JPAQueryFactory
 ) {
-
-    fun save(transaction: AccountTransaction): AccountTransaction {
-        val entity = accountTransactionMapper.toEntity(transaction)
-        return accountTransactionMapper.toDomain(accountTransactionJpaRepository.save(entity))
+    fun save(domain: AccountTransaction): AccountTransaction {
+        val accountRef = accountJpaRepository.getReferenceById(domain.accountId)
+        return jpaRepository.save(AccountTransactionJpaEntity.from(domain, accountRef)).toDomain()
     }
 
-    fun findByAccountId(accountId: Long): List<AccountTransaction> {
-        return accountTransactionJpaRepository.findByAccountIdOrderByCreatedAtDesc(accountId)
-            .map { accountTransactionMapper.toDomain(it) }
-    }
+    fun findByAccountId(accountId: Long): List<AccountTransaction> =
+        jpaRepository.findByAccount_IdOrderByCreatedAtDesc(accountId).map { it.toDomain() }
 
-    fun findByAccountId(accountId: Long, page: Int, size: Int): List<AccountTransaction> {
-        val pageable = PageRequest.of(page, size)
-        return accountTransactionJpaRepository.findByAccountIdOrderByCreatedAtDesc(accountId, pageable)
-            .map { accountTransactionMapper.toDomain(it) }
-    }
+    fun findByAccountId(accountId: Long, page: Int, size: Int): List<AccountTransaction> =
+        jpaRepository.findByAccount_IdOrderByCreatedAtDesc(accountId, PageRequest.of(page, size))
+            .map { it.toDomain() }
+
+    fun findByAccountIdWithAccount(accountId: Long): List<AccountTransaction> =
+        queryFactory.selectFrom(accountTransactionJpaEntity)
+            .join(accountTransactionJpaEntity.account).fetchJoin()
+            .where(accountTransactionJpaEntity.account.id.eq(accountId))
+            .orderBy(accountTransactionJpaEntity.createdAt.desc())
+            .fetch()
+            .map { it.toDomain() }
 }

@@ -1,5 +1,6 @@
 package com.sunday.account.repository
 
+import com.sunday.account.domain.AccountTransaction
 import com.sunday.account.domain.TransactionType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -23,11 +24,8 @@ class AccountTransactionJpaEntity(
     val id: Long = 0L,
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "account_id", nullable = false, insertable = false, updatable = false)
-    val account: AccountJpaEntity? = null,
-
-    @Column(name = "account_id", nullable = false)
-    val accountId: Long,
+    @JoinColumn(name = "account_id", nullable = false)
+    val account: AccountJpaEntity,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "transaction_type", nullable = false, length = 20)
@@ -44,4 +42,27 @@ class AccountTransactionJpaEntity(
 
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now()
-)
+) {
+    companion object {
+        fun from(domain: AccountTransaction, account: AccountJpaEntity): AccountTransactionJpaEntity =
+            AccountTransactionJpaEntity(
+                id = domain.id,
+                account = account,
+                transactionType = domain.transactionType,
+                amount = domain.amount,
+                balanceAfter = domain.balanceAfter,
+                description = domain.description,
+                createdAt = domain.createdAt
+            )
+    }
+
+    fun toDomain(): AccountTransaction = AccountTransaction(
+        id = id,
+        accountId = account.id,
+        transactionType = transactionType,
+        amount = amount,
+        balanceAfter = balanceAfter,
+        description = description,
+        createdAt = createdAt
+    )
+}
