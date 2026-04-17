@@ -5,35 +5,20 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 @Repository
-class PaymentRepository(
-    private val paymentJpaRepository: PaymentJpaRepository,
-    private val paymentMapper: PaymentMapper
-) {
+class PaymentRepository(private val jpaRepository: PaymentJpaRepository) {
 
-    fun findById(id: Long): Payment? {
-        return paymentJpaRepository.findByIdOrNull(id)?.let { paymentMapper.toDomain(it) }
-    }
+    fun findById(id: Long): Payment? =
+        jpaRepository.findByIdOrNull(id)?.toDomain()
 
-    fun findByOrderId(orderId: Long): Payment? {
-        return paymentJpaRepository.findByOrderId(orderId)?.let { paymentMapper.toDomain(it) }
-    }
+    fun findByOrderId(orderId: Long): Payment? =
+        jpaRepository.findByOrderId(orderId)?.toDomain()
 
-    fun findByIdempotencyKey(idempotencyKey: String): Payment? {
-        return paymentJpaRepository.findByIdempotencyKey(idempotencyKey)?.let { paymentMapper.toDomain(it) }
-    }
+    fun findByIdempotencyKey(idempotencyKey: String): Payment? =
+        jpaRepository.findByIdempotencyKey(idempotencyKey)?.toDomain()
 
-    fun findByMemberId(memberId: Long): List<Payment> {
-        return paymentJpaRepository.findByMemberIdOrderByCreatedAtDesc(memberId).map { paymentMapper.toDomain(it) }
-    }
+    fun findByMemberId(memberId: Long): List<Payment> =
+        jpaRepository.findByMemberIdOrderByCreatedAtDesc(memberId).map { it.toDomain() }
 
-    fun save(payment: Payment): Payment {
-        val entity = if (payment.id == 0L) {
-            paymentMapper.toEntity(payment)
-        } else {
-            paymentJpaRepository.findByIdOrNull(payment.id)?.apply {
-                updateFrom(payment)
-            } ?: paymentMapper.toEntity(payment)
-        }
-        return paymentMapper.toDomain(paymentJpaRepository.save(entity))
-    }
+    fun save(domain: Payment): Payment =
+        jpaRepository.save(PaymentJpaEntity.from(domain)).toDomain()
 }

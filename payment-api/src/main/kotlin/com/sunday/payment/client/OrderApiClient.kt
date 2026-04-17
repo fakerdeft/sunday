@@ -14,15 +14,15 @@ class OrderApiClient(
         .baseUrl(orderApiUrl)
         .build()
 
-    fun getOrderInfo(orderId: Long): OrderInfo {
+    fun getReservationInfo(reservationId: Long): ReservationInfo {
         val response = restClient.get()
-            .uri("/api/orders/{orderId}", orderId)
+            .uri("/api/orders/reservations/{reservationId}", reservationId)
             .retrieve()
-            .body(OrderResponse::class.java)
-            ?: throw RuntimeException("주문 정보를 가져올 수 없습니다: $orderId")
+            .body(ReservationResponse::class.java)
+            ?: throw RuntimeException("선점 정보를 가져올 수 없습니다: $reservationId")
 
-        return OrderInfo(
-            orderId = response.id,
+        return ReservationInfo(
+            reservationId = response.id,
             memberId = response.memberId,
             totalAmount = response.totalAmount,
             status = response.status,
@@ -30,21 +30,31 @@ class OrderApiClient(
         )
     }
 
-    fun markOrderAsPaid(orderId: Long) {
+    /** 결제 성공 → 확정 주문 생성 (선점 → PAID Order) */
+    fun confirmReservation(reservationId: Long) {
         restClient.post()
-            .uri("/api/orders/{orderId}/mark-paid", orderId)
+            .uri("/api/orders/reservations/{reservationId}/confirm", reservationId)
             .retrieve()
             .toBodilessEntity()
     }
 
-    fun cancelOrder(orderId: Long) {
+    /** 결제 실패 → 선점 취소 (재고 복구 O) */
+    fun cancelReservation(reservationId: Long) {
         restClient.post()
-            .uri("/api/orders/{orderId}/cancel", orderId)
+            .uri("/api/orders/reservations/{reservationId}/cancel", reservationId)
             .retrieve()
             .toBodilessEntity()
     }
 
-    private data class OrderResponse(
+    /** 환불 → 확정 주문 취소 (재고 복구 X) */
+    fun cancelOrder(reservationId: Long) {
+        restClient.post()
+            .uri("/api/orders/{reservationId}/cancel", reservationId)
+            .retrieve()
+            .toBodilessEntity()
+    }
+
+    private data class ReservationResponse(
         val id: Long,
         val memberId: Long,
         val totalAmount: BigDecimal,

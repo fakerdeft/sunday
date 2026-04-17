@@ -2,7 +2,15 @@ package com.sunday.payment.repository
 
 import com.sunday.payment.domain.Payment
 import com.sunday.payment.domain.PaymentStatus
-import jakarta.persistence.*
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Index
+import jakarta.persistence.Table
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
@@ -45,9 +53,29 @@ class PaymentJpaEntity(
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now()
 ) {
-    fun updateFrom(payment: Payment) {
-        status = payment.status
-        failureReason = payment.failureReason
-        updatedAt = payment.updatedAt
+    companion object {
+        fun from(domain: Payment): PaymentJpaEntity = PaymentJpaEntity(
+            id = domain.id,
+            orderId = domain.orderId,
+            memberId = domain.memberId,
+            amount = domain.amount,
+            status = domain.status,
+            idempotencyKey = domain.idempotencyKey,
+            failureReason = domain.failureReason,
+            createdAt = domain.createdAt,
+            updatedAt = domain.updatedAt
+        )
     }
+
+    fun toDomain(): Payment = Payment(
+        id = id,
+        orderId = orderId,
+        memberId = memberId,
+        amount = amount,
+        status = status,
+        idempotencyKey = idempotencyKey,
+        failureReason = failureReason,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
 }

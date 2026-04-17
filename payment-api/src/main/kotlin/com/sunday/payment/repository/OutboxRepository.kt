@@ -13,7 +13,7 @@ class OutboxRepository(
     private val outbox = QOutboxJpaEntity.outboxJpaEntity
 
     fun save(event: OutboxEvent): OutboxEvent {
-        return outboxJpaRepository.save(OutboxJpaEntity.fromDomain(event)).toDomain()
+        return outboxJpaRepository.save(OutboxJpaEntity.from(event)).toDomain()
     }
 
     fun findPendingEventsForPublish(limit: Int): List<OutboxEvent> {

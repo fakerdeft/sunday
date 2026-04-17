@@ -1,6 +1,13 @@
 package com.sunday.payment.repository
 
-import jakarta.persistence.*
+import jakarta.persistence.Column
+import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
+import jakarta.persistence.GeneratedValue
+import jakarta.persistence.GenerationType
+import jakarta.persistence.Id
+import jakarta.persistence.Table
 import java.time.LocalDateTime
 
 @Entity
@@ -46,6 +53,23 @@ class OutboxJpaEntity(
     @Column(name = "error_message")
     var errorMessage: String? = null
 ) {
+    companion object {
+        fun from(domain: OutboxEvent): OutboxJpaEntity = OutboxJpaEntity(
+            id = domain.id,
+            aggregateType = domain.aggregateType,
+            aggregateId = domain.aggregateId,
+            eventType = domain.eventType,
+            payload = domain.payload,
+            status = domain.status,
+            retryCount = domain.retryCount,
+            maxRetries = domain.maxRetries,
+            createdAt = domain.createdAt,
+            publishedAt = domain.publishedAt,
+            nextRetryAt = domain.nextRetryAt,
+            errorMessage = domain.errorMessage
+        )
+    }
+
     fun toDomain(): OutboxEvent = OutboxEvent(
         id = id,
         aggregateType = aggregateType,
@@ -60,21 +84,4 @@ class OutboxJpaEntity(
         nextRetryAt = nextRetryAt,
         errorMessage = errorMessage
     )
-
-    companion object {
-        fun fromDomain(event: OutboxEvent): OutboxJpaEntity = OutboxJpaEntity(
-            id = event.id,
-            aggregateType = event.aggregateType,
-            aggregateId = event.aggregateId,
-            eventType = event.eventType,
-            payload = event.payload,
-            status = event.status,
-            retryCount = event.retryCount,
-            maxRetries = event.maxRetries,
-            createdAt = event.createdAt,
-            publishedAt = event.publishedAt,
-            nextRetryAt = event.nextRetryAt,
-            errorMessage = event.errorMessage
-        )
-    }
 }

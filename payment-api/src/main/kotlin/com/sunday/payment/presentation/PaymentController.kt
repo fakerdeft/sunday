@@ -27,7 +27,7 @@ class PaymentController(
     ): PaymentResponse {
         return PaymentResponse.from(
             paymentService.processPayment(
-                orderId = request.orderId,
+                reservationId = request.orderId,
                 memberId = memberId,
                 idempotencyKey = request.idempotencyKey
             )
