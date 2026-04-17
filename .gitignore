@@ -56,6 +56,7 @@ load-test/
 .claude/
 .claude/CLAUDE.md
 tmpclaude*
+CONTEXT.md
 
 # Gemini
 .gemini/
