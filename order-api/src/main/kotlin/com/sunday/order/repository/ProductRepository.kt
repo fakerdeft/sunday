@@ -7,40 +7,26 @@ import org.springframework.stereotype.Repository
 
 @Repository
 class ProductRepository(
-    private val productJpaRepository: ProductJpaRepository,
-    private val productMapper: ProductMapper,
+    private val jpaRepository: ProductJpaRepository,
     private val queryFactory: JPAQueryFactory
 ) {
-    private val product = QProductJpaEntity.productJpaEntity
+    private val p = QProductJpaEntity.productJpaEntity
 
-    fun findById(id: Long): Product? {
-        return productJpaRepository.findByIdOrNull(id)?.let { productMapper.toDomain(it) }
-    }
+    fun findById(id: Long): Product? =
+        jpaRepository.findByIdOrNull(id)?.toDomain()
 
-    fun findByIdWithPessimisticLock(id: Long): Product? {
-        return productJpaRepository.findByIdWithPessimisticLock(id)
-            .orElse(null)
-            ?.let { productMapper.toDomain(it) }
-    }
+    fun findByIdWithPessimisticLock(id: Long): Product? =
+        jpaRepository.findByIdWithPessimisticLock(id).orElse(null)?.toDomain()
 
-    fun findAll(): List<Product> {
-        return productJpaRepository.findAll().map { productMapper.toDomain(it) }
-    }
+    fun findAll(): List<Product> =
+        jpaRepository.findAll().map { it.toDomain() }
 
-    fun findHotDeals(): List<Product> {
-        return queryFactory
-            .selectFrom(product)
-            .where(product.isHotDeal.isTrue)
-            .fetch()
-            .map { productMapper.toDomain(it) }
-    }
+    fun findHotDeals(): List<Product> =
+        queryFactory.selectFrom(p).where(p.isHotDeal.isTrue).fetch().map { it.toDomain() }
 
-    fun save(productDomain: Product): Product {
-        return productMapper.toDomain(productJpaRepository.save(productMapper.toEntity(productDomain)))
-    }
+    fun save(domain: Product): Product =
+        jpaRepository.save(ProductJpaEntity.from(domain)).toDomain()
 
-    fun saveAll(products: List<Product>): List<Product> {
-        return productJpaRepository.saveAll(products.map { productMapper.toEntity(it) })
-            .map { productMapper.toDomain(it) }
-    }
+    fun saveAll(products: List<Product>): List<Product> =
+        jpaRepository.saveAll(products.map { ProductJpaEntity.from(it) }).map { it.toDomain() }
 }

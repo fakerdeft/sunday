@@ -1,5 +1,6 @@
 package com.sunday.order.repository
 
+import com.sunday.order.domain.Product
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
@@ -42,4 +43,32 @@ class ProductJpaEntity(
 
     @Column(name = "updated_at", nullable = false)
     var updatedAt: LocalDateTime = LocalDateTime.now()
-)
+) {
+    companion object {
+        fun from(domain: Product): ProductJpaEntity = ProductJpaEntity(
+            id = domain.id,
+            name = domain.name,
+            price = domain.price,
+            stock = domain.stock,
+            totalQuantity = domain.totalQuantity,
+            isHotDeal = domain.isHotDeal,
+            hotDealStartTime = domain.hotDealStartTime,
+            hotDealEndTime = domain.hotDealEndTime,
+            createdAt = domain.createdAt,
+            updatedAt = domain.updatedAt
+        )
+    }
+
+    fun toDomain(): Product = Product(
+        id = id,
+        name = name,
+        price = price,
+        stock = stock,
+        totalQuantity = totalQuantity,
+        isHotDeal = isHotDeal,
+        hotDealStartTime = hotDealStartTime,
+        hotDealEndTime = hotDealEndTime,
+        createdAt = createdAt,
+        updatedAt = updatedAt
+    )
+}

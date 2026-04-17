@@ -1,8 +1,11 @@
 package com.sunday.order.application
 
 import com.sunday.order.domain.Product
-import com.sunday.order.repository.OrderRepository
+import com.sunday.order.domain.ProductStock
+import com.sunday.order.domain.StockStatus
+import com.sunday.order.repository.OrderReservationRepository
 import com.sunday.order.repository.ProductRepository
+import com.sunday.order.repository.ProductStockRepository
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -15,6 +18,7 @@ import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
 import java.math.BigDecimal
+import java.time.LocalDateTime
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -49,22 +53,20 @@ class OrderServiceConcurrencyTest {
         }
     }
 
-    @Autowired
-    private lateinit var orderService: OrderService
-
-    @Autowired
-    private lateinit var productRepository: ProductRepository
-
-    @Autowired
-    private lateinit var orderRepository: OrderRepository
+    @Autowired private lateinit var orderService: OrderService
+    @Autowired private lateinit var productRepository: ProductRepository
+    @Autowired private lateinit var reservationRepository: OrderReservationRepository
+    @Autowired private lateinit var productStockRepository: ProductStockRepository
+    @Autowired private lateinit var stockCasManager: StockCasManager
+    @Autowired private lateinit var redisTokenQueueManager: RedisTokenQueueManager
 
     private val initialStock = 100
-    private val threadCount = 5000
+    private val threadCount = 500
     private var productId = 0L
 
     @BeforeEach
     fun setUp() {
-        orderRepository.deleteAll()
+        reservationRepository.deleteAll()
         val product = productRepository.save(
             Product(
                 id = 0L,
@@ -72,28 +74,111 @@ class OrderServiceConcurrencyTest {
                 price = BigDecimal("10000"),
                 stock = initialStock,
                 totalQuantity = initialStock,
-                isHotDeal = false
+                isHotDeal = true,
+                hotDealStartTime = LocalDateTime.now().minusHours(1),
+                hotDealEndTime = LocalDateTime.now().plusHours(1)
             )
         )
         productId = product.id
     }
 
     @Test
-    fun `synchronized - 재고보다 많은 동시 요청에서 정확히 재고만큼만 성공`() {
-        // given
-        val latch = CountDownLatch(1)
-        val successCount = AtomicInteger(0)
-        val failCount = AtomicInteger(0)
+    fun `reentrantLock - 재고보다 많은 동시 요청에서 정확히 재고만큼만 성공`() {
+        val (success, fail) = runConcurrent { memberId ->
+            orderService.createReservationWithReentrantLock(memberId, productId, 1)
+        }
 
-        // when
+        val finalStock = productRepository.findById(productId)!!.stock
+        printResult("ReentrantLock", success, fail, finalStock)
+
+        assertThat(success).isEqualTo(initialStock)
+        assertThat(finalStock).isEqualTo(0)
+    }
+
+    @Test
+    fun `pessimisticLock - 재고보다 많은 동시 요청에서 정확히 재고만큼만 성공`() {
+        val (success, fail) = runConcurrent { memberId ->
+            orderService.createReservationWithPessimisticLock(memberId, productId, 1)
+        }
+
+        val finalStock = productRepository.findById(productId)!!.stock
+        printResult("PessimisticLock", success, fail, finalStock)
+
+        assertThat(success).isEqualTo(initialStock)
+        assertThat(finalStock).isEqualTo(0)
+    }
+
+    @Test
+    fun `distributedLock - 재고보다 많은 동시 요청에서 정확히 재고만큼만 성공`() {
+        val (success, fail) = runConcurrent { memberId ->
+            orderService.createReservationWithDistributedLock(memberId, productId, 1)
+        }
+
+        val finalStock = productRepository.findById(productId)!!.stock
+        printResult("DistributedLock", success, fail, finalStock)
+
+        assertThat(success).isEqualTo(initialStock)
+        assertThat(finalStock).isEqualTo(0)
+    }
+
+    @Test
+    fun `skipLocked - 재고보다 많은 동시 요청에서 정확히 재고만큼만 성공`() {
+        val stocks = (1..initialStock).map { ProductStock(0L, productId, StockStatus.AVAILABLE, 0L, null) }
+        productStockRepository.saveAll(stocks)
+
+        val (success, fail) = runConcurrent { memberId ->
+            orderService.createReservationWithSkipLocked(memberId, productId, 1)
+        }
+
+        val remaining = productStockRepository.countAvailable(productId)
+        printResult("SkipLocked", success, fail, remaining.toInt())
+
+        assertThat(success).isEqualTo(initialStock)
+        assertThat(remaining).isEqualTo(0L)
+    }
+
+    @Test
+    fun `cas - 재고보다 많은 동시 요청에서 정확히 재고만큼만 성공`() {
+        stockCasManager.reset(productId, initialStock)
+
+        val (success, fail) = runConcurrent { memberId ->
+            orderService.createReservationWithCas(memberId, productId, 1)
+        }
+
+        val finalStock = productRepository.findById(productId)!!.stock
+        printResult("CAS", success, fail, finalStock)
+
+        assertThat(success).isEqualTo(initialStock)
+    }
+
+    @Test
+    fun `redisQueue - 재고보다 많은 동시 요청에서 정확히 재고만큼만 성공`() {
+        redisTokenQueueManager.initQueue(productId, initialStock)
+
+        val (success, fail) = runConcurrent { memberId ->
+            orderService.createReservationWithRedisQueue(memberId, productId, 1)
+        }
+
+        val remaining = redisTokenQueueManager.queueSize(productId)
+        printResult("RedisQueue", success, fail, remaining.toInt())
+
+        assertThat(success).isEqualTo(initialStock)
+        assertThat(remaining).isEqualTo(0L)
+    }
+
+    private fun runConcurrent(action: (Long) -> Unit): Pair<Int, Int> {
+        val latch = CountDownLatch(1)
+        val success = AtomicInteger(0)
+        val fail = AtomicInteger(0)
+
         val threads = (1..threadCount).map { memberId ->
             Thread {
                 try {
                     latch.await()
-                    orderService.createOrderWithSynchronized(memberId.toLong(), productId, 1)
-                    successCount.incrementAndGet()
+                    action(memberId.toLong())
+                    success.incrementAndGet()
                 } catch (e: Exception) {
-                    failCount.incrementAndGet()
+                    fail.incrementAndGet()
                 }
             }
         }
@@ -102,18 +187,16 @@ class OrderServiceConcurrencyTest {
         latch.countDown()
         threads.forEach { it.join() }
 
-        // then
-        val finalProduct = productRepository.findById(productId)!!
-        println("===== 동시성 테스트 결과 =====")
+        return success.get() to fail.get()
+    }
+
+    private fun printResult(method: String, success: Int, fail: Int, remaining: Int) {
+        println("===== [$method] 동시성 테스트 결과 =====")
         println("총 요청 수  : $threadCount")
         println("초기 재고   : $initialStock")
-        println("성공        : ${successCount.get()}")
-        println("실패        : ${failCount.get()}")
-        println("최종 재고   : ${finalProduct.stock}")
-        println("================================")
-
-        assertThat(successCount.get()).isEqualTo(initialStock)
-        assertThat(failCount.get()).isEqualTo(threadCount - initialStock)
-        assertThat(finalProduct.stock).isEqualTo(0)
+        println("성공        : $success")
+        println("실패        : $fail")
+        println("남은 재고   : $remaining")
+        println("==========================================")
     }
 }

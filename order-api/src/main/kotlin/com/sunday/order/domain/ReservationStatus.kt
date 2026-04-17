@@ -1,8 +1,7 @@
 package com.sunday.order.domain
 
-enum class OrderStatus {
+enum class ReservationStatus {
     PENDING,
-    PAID,
     CANCELLED,
     EXPIRED
 }
