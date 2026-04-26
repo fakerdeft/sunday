@@ -48,4 +48,5 @@ class OrderReservationRepository(
         jpaRepository.save(OrderReservationJpaEntity.from(domain)).toDomain()
 
     fun deleteAll() = jpaRepository.deleteAll()
+    fun deleteByProductId(productId: Long) = jpaRepository.deleteByProductId(productId)
 }

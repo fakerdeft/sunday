@@ -143,4 +143,11 @@ class OrderController(
 
     @PostMapping("/test/reset")
     fun resetData() = testService.resetAllData()
+
+    @PostMapping("/test/reset-scale")
+    fun resetDataForScale(
+        @RequestBody request: ScaleResetRequest
+    ) = testService.resetProductForScale(request.productId, request.quantity)
+
+    data class ScaleResetRequest(val productId: Long, val quantity: Int)
 }

@@ -30,19 +30,28 @@ class TestService(
         }
         productRepository.saveAll(products)
 
-        // product_stock 초기화
-        products.forEach { p ->
-            productStockRepository.deleteByProductId(p.id)
-            val stocks = (1..p.totalQuantity).map {
-                ProductStock(id = 0L, productId = p.id, status = StockStatus.AVAILABLE,
-                    version = 0L, reservedBy = null, createdAt = LocalDateTime.now())
-            }
-            productStockRepository.saveAll(stocks)
+        products.forEach { p -> resetStockForProduct(p.id, p.totalQuantity) }
+    }
 
-            // CAS 초기화
-            stockCasManager.reset(p.id, p.totalQuantity)
-            // Redis Token Queue 초기화
-            redisTokenQueueManager.initQueue(p.id, p.totalQuantity)
+    @Transactional
+    fun resetProductForScale(productId: Long, quantity: Int) {
+        orderRepository.deleteByProductId(productId)
+        reservationRepository.deleteByProductId(productId)
+
+        val product = productRepository.findById(productId) ?: return
+        productRepository.save(product.copy(stock = quantity, totalQuantity = quantity))
+
+        resetStockForProduct(productId, quantity)
+    }
+
+    private fun resetStockForProduct(productId: Long, quantity: Int) {
+        productStockRepository.deleteByProductId(productId)
+        val stocks = (1..quantity).map {
+            ProductStock(id = 0L, productId = productId, status = StockStatus.AVAILABLE,
+                version = 0L, reservedBy = null, createdAt = LocalDateTime.now())
         }
+        productStockRepository.saveAll(stocks)
+        stockCasManager.reset(productId, quantity)
+        redisTokenQueueManager.initQueue(productId, quantity)
     }
 }

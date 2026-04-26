@@ -23,7 +23,7 @@ data class OrderReservation(
     }
 
     companion object {
-        private const val RESERVATION_TIMEOUT_MINUTES = 5L
+        private const val RESERVATION_TIMEOUT_MINUTES = 10L
 
         fun create(memberId: Long, product: Product, quantity: Int, reservationKey: String): OrderReservation {
             val now = LocalDateTime.now()

@@ -3,6 +3,7 @@ package com.sunday.order.repository
 import jakarta.persistence.LockModeType
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Lock
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 
 interface ProductStockJpaRepository : JpaRepository<ProductStockJpaEntity, Long> {
@@ -20,4 +21,11 @@ interface ProductStockJpaRepository : JpaRepository<ProductStockJpaEntity, Long>
     fun countByProductIdAndStatus(productId: Long, status: com.sunday.order.domain.StockStatus): Long
 
     fun deleteByProductId(productId: Long)
+
+    @Modifying
+    @Query(
+        value = "UPDATE sunday.product_stock SET status = 'AVAILABLE', reserved_by = NULL WHERE product_id = :productId AND reserved_by = :memberId AND status = 'SOLD'",
+        nativeQuery = true
+    )
+    fun releaseByMemberId(productId: Long, memberId: Long): Int
 }

@@ -1,9 +1,11 @@
 package com.sunday.payment.client
 
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
 import java.math.BigDecimal
+import java.time.Duration
 
 @Component
 class AccountApiClient(
@@ -11,6 +13,10 @@ class AccountApiClient(
 ) {
     private val restClient = RestClient.builder()
         .baseUrl(accountApiUrl)
+        .requestFactory(SimpleClientHttpRequestFactory().apply {
+            setConnectTimeout(Duration.ofSeconds(1))
+            setReadTimeout(Duration.ofSeconds(3))
+        })
         .build()
 
     fun withdraw(memberId: Long, amount: BigDecimal, description: String) {

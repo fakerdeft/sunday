@@ -15,9 +15,9 @@ interface OutboxJpaRepository : JpaRepository<OutboxJpaEntity, Long> {
     @Modifying
     @Query("""
         UPDATE OutboxJpaEntity o
-        SET o.status = CASE WHEN o.retryCount >= o.maxRetries THEN 'FAILED' ELSE 'PENDING' END,
+        SET o.status = CASE WHEN o.retryCount + 1 >= o.maxRetries THEN 'DEAD' ELSE 'PENDING' END,
             o.retryCount = o.retryCount + 1,
-            o.nextRetryAt = :nextRetryAt,
+            o.nextRetryAt = CASE WHEN o.retryCount + 1 >= o.maxRetries THEN NULL ELSE :nextRetryAt END,
             o.errorMessage = :errorMessage
         WHERE o.id = :id
     """)

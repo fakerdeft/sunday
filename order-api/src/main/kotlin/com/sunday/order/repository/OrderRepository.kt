@@ -20,4 +20,5 @@ class OrderRepository(private val jpaRepository: OrderJpaRepository) {
         jpaRepository.save(OrderJpaEntity.from(domain)).toDomain()
 
     fun deleteAll() = jpaRepository.deleteAll()
+    fun deleteByProductId(productId: Long) = jpaRepository.deleteByProductId(productId)
 }

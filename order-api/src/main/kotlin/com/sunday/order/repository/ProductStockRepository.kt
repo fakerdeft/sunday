@@ -24,6 +24,9 @@ class ProductStockRepository(private val jpaRepository: ProductStockJpaRepositor
     fun deleteByProductId(productId: Long) =
         jpaRepository.deleteByProductId(productId)
 
+    fun releaseByMemberId(productId: Long, memberId: Long) =
+        jpaRepository.releaseByMemberId(productId, memberId)
+
     fun findById(id: Long): ProductStock? =
         jpaRepository.findByIdOrNull(id)?.toDomain()
 }
