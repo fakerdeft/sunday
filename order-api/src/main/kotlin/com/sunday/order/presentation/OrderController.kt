@@ -76,6 +76,14 @@ class OrderController(
     ): ReservationResponse =
         ReservationResponse.from(orderService.createReservationWithSkipLocked(userId.toLong(), request.productId, request.quantity))
 
+    @PostMapping("/skip-locked-filter")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createWithSkipLockedFilter(
+        @RequestHeader("X-USER-ID") userId: String,
+        @RequestBody request: CreateOrderRequest
+    ): ReservationResponse =
+        ReservationResponse.from(orderService.createReservationWithSkipLockedFilter(userId.toLong(), request.productId, request.quantity))
+
     @PostMapping("/cas")
     @ResponseStatus(HttpStatus.CREATED)
     fun createWithCas(

@@ -34,7 +34,8 @@ class OrderService(
     private val orderRepository: OrderRepository,
     private val productStockRepository: ProductStockRepository,
     private val stockCasManager: StockCasManager,
-    private val redisTokenQueueManager: RedisTokenQueueManager
+    private val redisTokenQueueManager: RedisTokenQueueManager,
+    private val redisStockCounter: RedisStockCounter
 ) {
     @Autowired
     private lateinit var applicationContext: ApplicationContext
@@ -147,6 +148,43 @@ class OrderService(
                 "skip-locked:${UUID.randomUUID()}"
             )
         )
+    }
+
+    // ========================
+    // 4-1. SKIP LOCKED + Redis 조기 거절 필터
+    // ========================
+    @Transactional
+    fun createReservationWithSkipLockedFilter(memberId: Long, productId: Long, quantity: Int): OrderReservation {
+        val remaining = redisStockCounter.decrement(productId, quantity)
+        if (remaining < 0) {
+            redisStockCounter.increment(productId, quantity)
+            throw OutOfStockException(productId, quantity, 0)
+        }
+
+        try {
+            checkDuplicate(memberId, productId)
+            val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
+            if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(productId)
+            if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
+
+            repeat(quantity) {
+                productStockRepository.claimWithSkipLocked(productId, memberId)
+                    ?: throw OutOfStockException(productId, quantity, 0)
+            }
+            return reservationRepository.save(
+                OrderReservation.create(
+                    memberId,
+                    product,
+                    quantity,
+                    "skip-locked-filter:${UUID.randomUUID()}"
+                )
+            )
+        } catch (e: OutOfStockException) {
+            throw e
+        } catch (e: Exception) {
+            redisStockCounter.increment(productId, quantity)
+            throw e
+        }
     }
 
     // ========================
@@ -295,6 +333,11 @@ class OrderService(
 
             reservation.reservationKey.startsWith("redis-queue:") ->
                 repeat(reservation.quantity) { redisTokenQueueManager.release(reservation.productId) }
+
+            reservation.reservationKey.startsWith("skip-locked-filter:") -> {
+                productStockRepository.releaseByMemberId(reservation.productId, reservation.memberId)
+                redisStockCounter.increment(reservation.productId, reservation.quantity)
+            }
 
             reservation.reservationKey.startsWith("skip-locked:") ->
                 productStockRepository.releaseByMemberId(reservation.productId, reservation.memberId)

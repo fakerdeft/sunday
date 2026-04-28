@@ -17,7 +17,8 @@ class TestService(
     private val orderRepository: OrderRepository,
     private val productStockRepository: ProductStockRepository,
     private val stockCasManager: StockCasManager,
-    private val redisTokenQueueManager: RedisTokenQueueManager
+    private val redisTokenQueueManager: RedisTokenQueueManager,
+    private val redisStockCounter: RedisStockCounter
 ) {
     @Transactional
     fun resetAllData() {
@@ -39,7 +40,12 @@ class TestService(
         reservationRepository.deleteByProductId(productId)
 
         val product = productRepository.findById(productId) ?: return
-        productRepository.save(product.copy(stock = quantity, totalQuantity = quantity))
+        productRepository.save(product.copy(
+            stock = quantity,
+            totalQuantity = quantity,
+            hotDealStartTime = LocalDateTime.now().minusMinutes(1),
+            hotDealEndTime = LocalDateTime.now().plusHours(24)
+        ))
 
         resetStockForProduct(productId, quantity)
     }
@@ -53,5 +59,6 @@ class TestService(
         productStockRepository.saveAll(stocks)
         stockCasManager.reset(productId, quantity)
         redisTokenQueueManager.initQueue(productId, quantity)
+        redisStockCounter.set(productId, quantity)
     }
 }
