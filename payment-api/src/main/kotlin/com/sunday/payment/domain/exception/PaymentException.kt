@@ -1,9 +1,6 @@
 package com.sunday.payment.domain.exception
 
-import com.sunday.common.exception.AlreadyExistsException
 import com.sunday.common.exception.DuplicateRequestException
-import com.sunday.common.exception.InsufficientBalanceException
-import com.sunday.common.exception.LockAcquisitionException
 import com.sunday.common.exception.NotFoundException
 import com.sunday.common.exception.OrderNotPayableException
 import com.sunday.common.exception.PaymentFailedException
@@ -23,21 +20,9 @@ class DuplicatePaymentException(idempotencyKey: String) :
     PaymentException("중복된 결제 요청입니다. (키: $idempotencyKey)"),
     DuplicateRequestException
 
-class PaymentAlreadyCompletedException(orderId: Long) :
-    PaymentException("이미 결제가 완료된 주문입니다: $orderId"),
-    AlreadyExistsException
-
 class PaymentProcessFailedException(orderId: Long, reason: String) :
     PaymentException("주문 $orderId 결제 실패: $reason"),
     PaymentFailedException
-
-class InsufficientBalanceForPaymentException(required: BigDecimal, available: BigDecimal) :
-    PaymentException("결제 잔액이 부족합니다. 필요: $required, 보유: $available"),
-    InsufficientBalanceException
-
-class PaymentLockAcquisitionException(orderId: Long) :
-    PaymentException("주문 $orderId 에 대한 결제 락 획득에 실패했습니다."),
-    LockAcquisitionException
 
 class OrderNotPayableForPaymentException(orderId: Long, reason: String) :
     PaymentException("주문 $orderId 는 결제 가능한 상태가 아닙니다: $reason"),

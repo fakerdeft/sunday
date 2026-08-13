@@ -26,15 +26,9 @@ class AccountRepository(
             .fetchOne()
             ?.toDomain()
 
-    fun findByUserId(userId: String): Account? =
-        jpaRepository.findByUserId(userId)?.toDomain()
-
     fun save(domain: Account): Account =
         jpaRepository.save(AccountJpaEntity.from(domain)).toDomain()
 
     fun existsByMemberId(memberId: Long): Boolean =
         jpaRepository.existsByMemberId(memberId)
-
-    fun existsByUserId(userId: String): Boolean =
-        jpaRepository.existsByUserId(userId)
 }

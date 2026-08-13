@@ -22,11 +22,6 @@ class MemberService(
         return memberRepository.findAll()
     }
 
-    @Transactional(readOnly = true)
-    fun existsMember(id: Long): Boolean {
-        return memberRepository.existsById(id)
-    }
-
     @Transactional
     fun createMember(name: String): Member {
         val member = Member.create(name)

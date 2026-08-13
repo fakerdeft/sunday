@@ -22,13 +22,6 @@ data class Product(
         if (totalQuantity < stock) throw IllegalArgumentException("Total quantity cannot be less than current stock")
     }
 
-    companion object {
-        fun createHotDeal(name: String, price: BigDecimal, stock: Int, startTime: LocalDateTime, endTime: LocalDateTime): Product {
-            return Product(id = 0L, name = name, price = price, stock = stock, totalQuantity = stock,
-                isHotDeal = true, hotDealStartTime = startTime, hotDealEndTime = endTime)
-        }
-    }
-
     fun isHotDealActive(): Boolean {
         if (!isHotDeal) {
 

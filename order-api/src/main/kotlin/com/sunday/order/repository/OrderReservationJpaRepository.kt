@@ -5,7 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface OrderReservationJpaRepository : JpaRepository<OrderReservationJpaEntity, Long> {
     fun findByMemberIdOrderByCreatedAtDesc(memberId: Long): List<OrderReservationJpaEntity>
-    fun findByStatus(status: ReservationStatus): List<OrderReservationJpaEntity>
     fun existsByMemberIdAndProductIdAndStatus(
         memberId: Long,
         productId: Long,

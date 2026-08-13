@@ -19,8 +19,6 @@ allprojects {
     }
 }
 
-val queryDslVersion = "7.0"
-
 // 서브모듈 기본 설정
 subprojects {
     apply(plugin = "org.jetbrains.kotlin.jvm")

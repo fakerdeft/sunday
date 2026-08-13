@@ -49,8 +49,6 @@ data class Transfer(
 
     fun complete(): Transfer = copy(status = TransferStatus.COMPLETED, updatedAt = LocalDateTime.now())
 
-    fun fail(reason: String): Transfer = copy(status = TransferStatus.FAILED, failureReason = reason, updatedAt = LocalDateTime.now())
-
     fun reverse(): Transfer {
         if (status != TransferStatus.COMPLETED) throw TransferNotReversibleException(id, status.name)
 

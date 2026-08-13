@@ -4,7 +4,6 @@ import com.sunday.common.exception.AlreadyExistsException
 import com.sunday.common.exception.ConcurrencyException
 import com.sunday.common.exception.DuplicateRequestException
 import com.sunday.common.exception.InsufficientBalanceException
-import com.sunday.common.exception.LockAcquisitionException
 import com.sunday.common.exception.NotFoundException
 import java.math.BigDecimal
 
@@ -15,9 +14,6 @@ class AccountNotFoundException(id: Long) :
 
 class AccountNotFoundByMemberException(memberId: Long) :
     AccountException("해당 회원의 계좌를 찾을 수 없습니다: $memberId"), NotFoundException
-
-class AccountNotFoundByUserIdException(userId: String) :
-    AccountException("해당 사용자의 계좌를 찾을 수 없습니다: $userId"), NotFoundException
 
 class InsufficientBalanceException(current: BigDecimal, requested: BigDecimal) :
     AccountException("잔액이 부족합니다. 현재: $current, 요청: $requested"), InsufficientBalanceException
@@ -40,21 +36,11 @@ class InvalidTransactionAmountException(amount: BigDecimal) :
 class TransferNotFoundException(id: Long) :
     AccountException("이체 내역을 찾을 수 없습니다: $id"), NotFoundException
 
-class DuplicateTransferException(idempotencyKey: String) :
-    AccountException("중복된 이체 요청입니다. (키: $idempotencyKey)"), DuplicateRequestException
-
 class DuplicateAccountOperationException(operationId: String) :
     AccountException("동일한 작업 키가 다른 계좌 거래에 사용되었습니다: $operationId"), DuplicateRequestException
 
 class TransferToSelfException :
     AccountException("자신에게 이체할 수 없습니다.")
-
-class TransferLockAcquisitionException(senderAccountId: Long, receiverAccountId: Long) :
-    AccountException("이체 락 획득에 실패했습니다. (보내는 분: $senderAccountId, 받는 분: $receiverAccountId)"),
-    LockAcquisitionException
-
-class TransferFailedException(transferId: Long, reason: String) :
-    AccountException("이체 $transferId 실패: $reason")
 
 class TransferNotReversibleException(transferId: Long, currentStatus: String) :
     AccountException("이체 $transferId 를 취소할 수 없습니다. 현재 상태: $currentStatus")

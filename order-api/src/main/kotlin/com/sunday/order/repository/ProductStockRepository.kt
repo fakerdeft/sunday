@@ -6,7 +6,6 @@ import com.sunday.order.domain.StockStatus
 import jakarta.persistence.LockModeType
 import org.hibernate.Timeouts
 import org.hibernate.jpa.SpecHints
-import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 @Repository
@@ -82,7 +81,4 @@ class ProductStockRepository(
 
         return updatedCount.toInt()
     }
-
-    fun findById(id: Long): ProductStock? =
-        jpaRepository.findByIdOrNull(id)?.toDomain()
 }

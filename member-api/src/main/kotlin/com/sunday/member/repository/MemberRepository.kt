@@ -15,7 +15,4 @@ class MemberRepository(private val jpaRepository: MemberJpaRepository) {
 
     fun findAll(): List<Member> =
         jpaRepository.findAll().map { it.toDomain() }
-
-    fun existsById(id: Long): Boolean =
-        jpaRepository.existsById(id)
 }

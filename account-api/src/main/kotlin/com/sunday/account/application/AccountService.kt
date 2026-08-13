@@ -4,7 +4,6 @@ import com.sunday.account.domain.Account
 import com.sunday.account.domain.AccountTransaction
 import com.sunday.account.domain.AccountAlreadyExistsException
 import com.sunday.account.domain.AccountNotFoundByMemberException
-import com.sunday.account.domain.AccountNotFoundByUserIdException
 import com.sunday.account.domain.AccountNotFoundException
 import com.sunday.account.domain.ConcurrentModificationException
 import com.sunday.account.domain.DuplicateAccountOperationException
@@ -30,11 +29,6 @@ class AccountService(
     @Transactional(readOnly = true)
     fun getAccountByMemberId(memberId: Long): Account {
         return accountRepository.findByMemberId(memberId) ?: throw AccountNotFoundByMemberException(memberId)
-    }
-
-    @Transactional(readOnly = true)
-    fun getAccountByUserId(userId: String): Account {
-        return accountRepository.findByUserId(userId) ?: throw AccountNotFoundByUserIdException(userId)
     }
 
     @Transactional
