@@ -77,7 +77,7 @@ class OrderReservationJpaEntity(
             updatedAt = domain.updatedAt
         )
     }
-    
+
     fun toDomain(): OrderReservation = OrderReservation(
         id = id,
         memberId = memberId,

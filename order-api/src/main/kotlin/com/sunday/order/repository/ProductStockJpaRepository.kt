@@ -20,12 +20,33 @@ interface ProductStockJpaRepository : JpaRepository<ProductStockJpaEntity, Long>
 
     fun countByProductIdAndStatus(productId: Long, status: com.sunday.order.domain.StockStatus): Long
 
+    @Query(
+        """
+        SELECT s.productId AS productId, COUNT(s) AS availableStock
+        FROM ProductStockJpaEntity s
+        WHERE s.productId IN :productIds
+          AND s.status = com.sunday.order.domain.StockStatus.AVAILABLE
+        GROUP BY s.productId
+        """
+    )
+    fun countAvailableByProductIds(productIds: Collection<Long>): List<AvailableStockCount>
+
+    fun countByReservationIdAndStatus(
+        reservationId: Long,
+        status: com.sunday.order.domain.StockStatus
+    ): Long
+
     fun deleteByProductId(productId: Long)
 
     @Modifying
     @Query(
-        value = "UPDATE sunday.product_stock SET status = 'AVAILABLE', reserved_by = NULL WHERE product_id = :productId AND reserved_by = :memberId AND status = 'SOLD'",
+        value = "UPDATE sunday.product_stock SET status = 'AVAILABLE', reserved_by = NULL, reservation_id = NULL WHERE reservation_id = :reservationId AND status = 'SOLD'",
         nativeQuery = true
     )
-    fun releaseByMemberId(productId: Long, memberId: Long): Int
+    fun releaseByReservationId(reservationId: Long): Int
+}
+
+interface AvailableStockCount {
+    val productId: Long
+    val availableStock: Long
 }

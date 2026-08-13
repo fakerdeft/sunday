@@ -13,6 +13,7 @@ class OrderExpirationScheduler(private val orderService: OrderService) {
     fun expireReservations() {
         try {
             val count = orderService.expireReservations()
+
             if (count > 0) log.info("Expired $count reservations and restored stock")
         } catch (e: Exception) {
             log.error("Failed to expire reservations", e)

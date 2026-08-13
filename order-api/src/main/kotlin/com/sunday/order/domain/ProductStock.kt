@@ -8,6 +8,7 @@ data class ProductStock(
     val status: StockStatus,
     val version: Long,
     val reservedBy: Long?,
+    val reservationId: Long? = null,
     val createdAt: LocalDateTime = LocalDateTime.now()
 )
 

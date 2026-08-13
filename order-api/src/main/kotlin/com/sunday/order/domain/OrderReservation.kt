@@ -27,6 +27,7 @@ data class OrderReservation(
 
         fun create(memberId: Long, product: Product, quantity: Int, reservationKey: String): OrderReservation {
             val now = LocalDateTime.now()
+
             return OrderReservation(
                 id = 0L,
                 memberId = memberId,
@@ -44,17 +45,26 @@ data class OrderReservation(
         }
     }
 
-    fun isExpired(): Boolean = LocalDateTime.now().isAfter(expireAt)
+    fun isExpired(now: LocalDateTime = LocalDateTime.now()): Boolean = !now.isBefore(expireAt)
+
+    fun confirm(): OrderReservation {
+        if (status != ReservationStatus.PENDING)
+            throw InvalidOrderStatusException(id, status.name, "PENDING")
+
+        return copy(status = ReservationStatus.CONFIRMED, updatedAt = LocalDateTime.now())
+    }
 
     fun cancel(): OrderReservation {
         if (status != ReservationStatus.PENDING)
             throw InvalidOrderStatusException(id, status.name, "PENDING")
+
         return copy(status = ReservationStatus.CANCELLED, updatedAt = LocalDateTime.now())
     }
 
     fun expire(): OrderReservation {
         if (status != ReservationStatus.PENDING)
             throw InvalidOrderStatusException(id, status.name, "PENDING")
+
         return copy(status = ReservationStatus.EXPIRED, updatedAt = LocalDateTime.now())
     }
 }

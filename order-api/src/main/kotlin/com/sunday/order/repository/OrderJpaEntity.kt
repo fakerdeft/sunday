@@ -1,10 +1,13 @@
 package com.sunday.order.repository
 
 import com.sunday.order.domain.Order
+import com.sunday.order.domain.OrderStatus
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.Id
 import jakarta.persistence.Index
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.Table
 import java.math.BigDecimal
 import java.time.LocalDateTime
@@ -38,6 +41,10 @@ class OrderJpaEntity(
     @Column(name = "total_amount", nullable = false, precision = 19, scale = 2)
     val totalAmount: BigDecimal,
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    var status: OrderStatus = OrderStatus.PAID,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
@@ -50,10 +57,11 @@ class OrderJpaEntity(
             quantity = domain.quantity,
             unitPrice = domain.unitPrice,
             totalAmount = domain.totalAmount,
+            status = domain.status,
             createdAt = domain.createdAt
         )
     }
-    
+
     fun toDomain(): Order = Order(
         reservationId = reservationId,
         memberId = memberId,
@@ -62,6 +70,7 @@ class OrderJpaEntity(
         quantity = quantity,
         unitPrice = unitPrice,
         totalAmount = totalAmount,
+        status = status,
         createdAt = createdAt
     )
 }

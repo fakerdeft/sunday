@@ -26,16 +26,16 @@ Configuration:
     Logger:
       - name: com.sunday
         additivity: false
-        level: DEBUG
+        level: INFO
         AppenderRef:
           ref: Console_Appender
       - name: org.hibernate.SQL
-        level: DEBUG
+        level: WARN
         additivity: false
         AppenderRef:
           ref: Console_Appender
       - name: org.hibernate.orm.jdbc.bind
-        level: TRACE
+        level: WARN
         additivity: false
         AppenderRef:
           ref: Console_Appender

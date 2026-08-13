@@ -39,6 +39,9 @@ class DuplicatePendingOrderException(memberId: Long, productId: Long) :
     OrderException("회원 $memberId 님은 상품 $productId 에 대해 이미 대기 중인 선점이 있습니다."),
     DuplicateRequestException
 
+class StockReservationMismatchException(reservationId: Long, expected: Int, actual: Int) :
+    OrderException("예약 $reservationId 의 재고 귀속 수량이 일치하지 않습니다. 기대: $expected, 실제: $actual")
+
 class InvalidOrderQuantityException(quantity: Int) :
     OrderException("주문 수량은 양수여야 합니다. 입력값: $quantity")
 

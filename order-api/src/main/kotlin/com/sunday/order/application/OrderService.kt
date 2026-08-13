@@ -3,6 +3,7 @@ package com.sunday.order.application
 import com.sunday.order.domain.AlreadyPurchasedException
 import com.sunday.order.domain.DuplicatePendingOrderException
 import com.sunday.order.domain.HotDealNotActiveException
+import com.sunday.order.domain.InvalidOrderQuantityException
 import com.sunday.order.domain.InvalidOrderStatusException
 import com.sunday.order.domain.Order
 import com.sunday.order.domain.OrderNotFoundException
@@ -13,52 +14,40 @@ import com.sunday.order.domain.ProductNotFoundException
 import com.sunday.order.domain.ReservationExpiredException
 import com.sunday.order.domain.ReservationNotFoundException
 import com.sunday.order.domain.ReservationStatus
+import com.sunday.order.domain.StockReservationMismatchException
 import com.sunday.order.repository.OrderRepository
 import com.sunday.order.repository.OrderReservationRepository
 import com.sunday.order.repository.ProductRepository
 import com.sunday.order.repository.ProductStockRepository
-import com.sunday.support.infra.lock.DistributedLock
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.context.ApplicationContext
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.util.*
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
+import java.util.UUID
 
 @Service
 class OrderService(
     private val productRepository: ProductRepository,
     private val reservationRepository: OrderReservationRepository,
     private val orderRepository: OrderRepository,
-    private val productStockRepository: ProductStockRepository,
-    private val stockCasManager: StockCasManager,
-    private val redisTokenQueueManager: RedisTokenQueueManager,
-    private val redisStockCounter: RedisStockCounter
+    private val productStockRepository: ProductStockRepository
 ) {
-    @Autowired
-    private lateinit var applicationContext: ApplicationContext
-    private val self: OrderService get() = applicationContext.getBean(OrderService::class.java)
-
-    private val reentrantLocks = ConcurrentHashMap<Long, ReentrantLock>()
-
-    // ========================
-    // 상품 조회
-    // ========================
-    @Transactional(readOnly = true)
-    fun getProducts(): List<Product> = productRepository.findAll()
+    companion object {
+        private const val EXPIRATION_BATCH_SIZE = 100
+    }
 
     @Transactional(readOnly = true)
-    fun getHotDeals(): List<Product> = productRepository.findHotDeals()
+    fun getProducts(): List<ProductAvailability> = withAvailability(productRepository.findAll())
 
     @Transactional(readOnly = true)
-    fun getProduct(productId: Long): Product =
-        productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
+    fun getHotDeals(): List<ProductAvailability> = withAvailability(productRepository.findHotDeals())
 
-    // ========================
-    // 선점 조회
-    // ========================
+    @Transactional(readOnly = true)
+    fun getProduct(productId: Long): ProductAvailability {
+        val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
+
+        return ProductAvailability(product, productStockRepository.countAvailable(productId))
+    }
+
     @Transactional(readOnly = true)
     fun getReservation(reservationId: Long): OrderReservation =
         reservationRepository.findById(reservationId) ?: throw ReservationNotFoundException(reservationId)
@@ -67,9 +56,6 @@ class OrderService(
     fun getMyReservations(memberId: Long): List<OrderReservation> =
         reservationRepository.findByMemberId(memberId)
 
-    // ========================
-    // 확정 주문 조회
-    // ========================
     @Transactional(readOnly = true)
     fun getOrder(reservationId: Long): Order =
         orderRepository.findByReservationId(reservationId) ?: throw OrderNotFoundException(reservationId)
@@ -77,275 +63,193 @@ class OrderService(
     @Transactional(readOnly = true)
     fun getMyOrders(memberId: Long): List<Order> = orderRepository.findByMemberId(memberId)
 
-    // ========================
-    // 1. ReentrantLock (JVM, 단일 인스턴스)
-    // ========================
-    fun createReservationWithReentrantLock(memberId: Long, productId: Long, quantity: Int): OrderReservation {
-        val lock = reentrantLocks.computeIfAbsent(productId) { ReentrantLock() }
-        lock.withLock {
-            return self.createReservationTransactional(memberId, productId, quantity, "reentrant")
-        }
-    }
-
-    // ========================
-    // 2. DB Pessimistic Lock
-    // ========================
+    /**
+     * 실제 주문 경로. 재고를 개별 DB 행으로 관리하고 잠기지 않은 행만 선점한다.
+     * PostgreSQL이 재고의 유일한 원본이며 외부 락이나 Redis 재고를 사용하지 않는다.
+     */
     @Transactional
-    fun createReservationWithPessimisticLock(memberId: Long, productId: Long, quantity: Int): OrderReservation {
-        checkDuplicate(memberId, productId)
-        if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
-        val product =
-            productRepository.findByIdWithPessimisticLock(productId) ?: throw ProductNotFoundException(productId)
-        validateAndDecreaseStock(product, quantity)
-        return reservationRepository.save(
-            OrderReservation.create(
-                memberId,
-                product,
-                quantity,
-                "pessimistic:${UUID.randomUUID()}"
-            )
-        )
-    }
-
-    // ========================
-    // 3. Redis 분산락
-    // ========================
-    @DistributedLock(key = "'order:product:' + #productId", waitTime = 60, leaseTime = 30)
-    fun createReservationWithDistributedLock(memberId: Long, productId: Long, quantity: Int): OrderReservation {
-        checkDuplicate(memberId, productId)
-        if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
-        val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
-        validateAndDecreaseStock(product, quantity)
-        return reservationRepository.save(
-            OrderReservation.create(
-                memberId,
-                product,
-                quantity,
-                "distributed:${UUID.randomUUID()}"
-            )
-        )
-    }
-
-    // ========================
-    // 4. SKIP LOCKED (product_stock row per unit)
-    // ========================
-    @Transactional
-    fun createReservationWithSkipLocked(memberId: Long, productId: Long, quantity: Int): OrderReservation {
-        checkDuplicate(memberId, productId)
-        val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
-        if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(productId)
-        if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
-
-        repeat(quantity) {
-            productStockRepository.claimWithSkipLocked(productId, memberId)
-                ?: throw OutOfStockException(productId, quantity, 0)
-        }
-        return reservationRepository.save(
-            OrderReservation.create(
-                memberId,
-                product,
-                quantity,
-                "skip-locked:${UUID.randomUUID()}"
-            )
-        )
-    }
-
-    // ========================
-    // 4-1. SKIP LOCKED + Redis 조기 거절 필터
-    // ========================
-    @Transactional
-    fun createReservationWithSkipLockedFilter(memberId: Long, productId: Long, quantity: Int): OrderReservation {
-        val remaining = redisStockCounter.decrement(productId, quantity)
-        if (remaining < 0) {
-            redisStockCounter.increment(productId, quantity)
-            throw OutOfStockException(productId, quantity, 0)
-        }
-
-        try {
-            checkDuplicate(memberId, productId)
-            val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
-            if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(productId)
-            if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
-
-            repeat(quantity) {
-                productStockRepository.claimWithSkipLocked(productId, memberId)
-                    ?: throw OutOfStockException(productId, quantity, 0)
-            }
-            return reservationRepository.save(
-                OrderReservation.create(
-                    memberId,
-                    product,
-                    quantity,
-                    "skip-locked-filter:${UUID.randomUUID()}"
-                )
-            )
-        } catch (e: OutOfStockException) {
-            throw e
-        } catch (e: Exception) {
-            redisStockCounter.increment(productId, quantity)
-            throw e
-        }
-    }
-
-    // ========================
-    // 5. CAS (AtomicInteger, lock-free, 단일 인스턴스)
-    // ========================
-    @Transactional
-    fun createReservationWithCas(memberId: Long, productId: Long, quantity: Int): OrderReservation {
+    fun createReservation(memberId: Long, productId: Long, quantity: Int): OrderReservation {
+        validateQuantity(quantity)
         checkDuplicate(memberId, productId)
 
         val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
 
-        if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(productId)
+        validateProductForReservation(product, memberId)
 
-        if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
-
-        if (!stockCasManager.tryDecrement(productId, quantity))
-            throw OutOfStockException(productId, quantity, 0)
-
-        return reservationRepository.save(
+        val reservation = savePendingReservation(
             OrderReservation.create(
-                memberId,
-                product,
-                quantity,
-                "cas:${UUID.randomUUID()}"
+                memberId = memberId,
+                product = product,
+                quantity = quantity,
+                reservationKey = "skip-locked:${UUID.randomUUID()}"
             )
         )
-    }
 
-    // ========================
-    // 6. Redis Token Queue (LPOP 원자적 선점)
-    // ========================
-    @Transactional
-    fun createReservationWithRedisQueue(memberId: Long, productId: Long, quantity: Int): OrderReservation {
-        checkDuplicate(memberId, productId)
-        val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
-        if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(productId)
-        if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
-
-        repeat(quantity) {
-            redisTokenQueueManager.claim(productId)
-                ?: throw OutOfStockException(productId, quantity, 0)
+        repeat(quantity) { claimed ->
+            productStockRepository.claimWithSkipLocked(productId, memberId, reservation.id)
+                ?: throw OutOfStockException(productId, quantity, claimed)
         }
-        return reservationRepository.save(
+
+        return reservation
+    }
+
+    /**
+     * 성능 비교를 위한 DB 비관적 락 기준선이다. 실제 주문 경로에서는 사용하지 않는다.
+     */
+    @Transactional
+    fun createReservationWithPessimisticLock(
+        memberId: Long,
+        productId: Long,
+        quantity: Int
+    ): OrderReservation {
+        validateQuantity(quantity)
+        checkDuplicate(memberId, productId)
+
+        val product = productRepository.findByIdWithPessimisticLock(productId)
+            ?: throw ProductNotFoundException(productId)
+        validateProductForReservation(product, memberId)
+        product.decreaseStock(quantity)
+        productRepository.save(product)
+
+        return savePendingReservation(
             OrderReservation.create(
-                memberId,
-                product,
-                quantity,
-                "redis-queue:${UUID.randomUUID()}"
+                memberId = memberId,
+                product = product,
+                quantity = quantity,
+                reservationKey = "pessimistic:${UUID.randomUUID()}"
             )
         )
     }
 
-    // ========================
-    // 선점 취소 (PENDING → CANCELLED, 재고 복구 O)
-    // ========================
     @Transactional
     fun cancelReservation(reservationId: Long): OrderReservation {
-        val reservation = getReservation(reservationId)
+        val reservation = reservationRepository.findByIdForUpdate(reservationId)
+            ?: throw ReservationNotFoundException(reservationId)
+
+        if (reservation.status == ReservationStatus.CANCELLED) {
+
+            return reservation
+        }
+
+        if (reservation.status != ReservationStatus.PENDING) {
+            throw InvalidOrderStatusException(reservationId, reservation.status.name, "PENDING")
+        }
+
         val cancelled = reservation.cancel()
+
         restoreStock(cancelled)
+
         return reservationRepository.save(cancelled)
     }
 
-    // ========================
-    // 확정 주문 취소 (환불 후 호출, 재고 복구 X)
-    // ========================
-    @Transactional
-    fun cancelOrder(reservationId: Long) {
-        orderRepository.findByReservationId(reservationId) ?: throw OrderNotFoundException(reservationId)
-    }
-
-    // ========================
-    // 결제 성공 → 확정 주문 생성
-    // ========================
     @Transactional
     fun confirmReservation(reservationId: Long): Order {
-        val reservation = getReservation(reservationId)
+        val reservation = reservationRepository.findByIdForUpdate(reservationId)
+            ?: throw ReservationNotFoundException(reservationId)
 
-        if (reservation.status != ReservationStatus.PENDING)
+        if (reservation.status == ReservationStatus.CONFIRMED) {
+
+            return orderRepository.findByReservationId(reservationId)
+                ?: throw InvalidOrderStatusException(
+                    reservationId,
+                    reservation.status.name,
+                    "CONFIRMED_WITH_ORDER"
+                )
+        }
+        if (reservation.status != ReservationStatus.PENDING) {
             throw InvalidOrderStatusException(reservationId, reservation.status.name, "PENDING")
-        if (reservation.isExpired()) throw ReservationExpiredException(reservationId)
-        if (orderRepository.existsPaidOrder(reservation.memberId, reservation.productId))
-            throw AlreadyPurchasedException(reservation.memberId, reservation.productId)
+        }
+        if (reservation.isExpired()) {
+            throw ReservationExpiredException(reservationId)
+        }
 
-        return orderRepository.save(Order.from(reservation))
+        if (orderRepository.existsPaidOrder(reservation.memberId, reservation.productId)) {
+            throw AlreadyPurchasedException(reservation.memberId, reservation.productId)
+        }
+
+        val confirmed = reservation.confirm()
+
+        reservationRepository.save(confirmed)
+
+        return orderRepository.save(Order.from(confirmed))
     }
 
-    // ========================
-    // 만료 처리 스케줄러
-    // ========================
+    @Transactional
+    fun cancelOrder(reservationId: Long) {
+        val order = orderRepository.findByReservationIdForUpdate(reservationId)
+            ?: throw OrderNotFoundException(reservationId)
+        if (order.status != com.sunday.order.domain.OrderStatus.CANCELLED) {
+            orderRepository.save(order.cancel())
+        }
+    }
+
     @Transactional
     fun expireReservations(): Int {
-        val expired = reservationRepository.findExpiredPendingReservations()
+        val expired = reservationRepository.findExpiredPendingReservationsForUpdate(EXPIRATION_BATCH_SIZE)
+
         expired.forEach { reservation ->
-            try {
-                restoreStock(reservation)
-                reservationRepository.save(reservation.expire())
-            } catch (_: Exception) {
-            }
+            restoreStock(reservation)
+            reservationRepository.save(reservation.expire())
         }
+
         return expired.size
     }
 
-    // ========================
-    // 내부 헬퍼
-    // ========================
-    @Transactional
-    fun createReservationTransactional(
-        memberId: Long,
-        productId: Long,
-        quantity: Int,
-        prefix: String
-    ): OrderReservation {
-        checkDuplicate(memberId, productId)
-
-        if (orderRepository.existsPaidOrder(memberId, productId)) throw AlreadyPurchasedException(memberId, productId)
-        val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
-
-        validateAndDecreaseStock(product, quantity)
-
-        return reservationRepository.save(
-            OrderReservation.create(
-                memberId,
-                product,
-                quantity,
-                "$prefix:${UUID.randomUUID()}"
-            )
-        )
+    private fun validateProductForReservation(product: Product, memberId: Long) {
+        if (product.isHotDeal && !product.isHotDealActive()) {
+            throw HotDealNotActiveException(product.id)
+        }
+        if (orderRepository.existsPaidOrder(memberId, product.id)) {
+            throw AlreadyPurchasedException(memberId, product.id)
+        }
     }
 
     private fun checkDuplicate(memberId: Long, productId: Long) {
-        if (reservationRepository.existsPendingReservation(memberId, productId))
+        if (reservationRepository.existsPendingReservation(memberId, productId)) {
             throw DuplicatePendingOrderException(memberId, productId)
+        }
     }
 
-    private fun validateAndDecreaseStock(product: Product, quantity: Int) {
-        if (product.isHotDeal && !product.isHotDealActive()) throw HotDealNotActiveException(product.id)
-        product.decreaseStock(quantity)
-        productRepository.save(product)
+    private fun validateQuantity(quantity: Int) {
+        if (quantity <= 0) {
+            throw InvalidOrderQuantityException(quantity)
+        }
     }
+
+    private fun withAvailability(products: List<Product>): List<ProductAvailability> {
+        if (products.isEmpty()) {
+
+            return emptyList()
+        }
+
+        val availableByProductId = productStockRepository.countAvailableByProductIds(products.map { it.id })
+
+        return products.map { product ->
+            ProductAvailability(product, availableByProductId[product.id] ?: 0L)
+        }
+    }
+
+    private fun savePendingReservation(reservation: OrderReservation): OrderReservation =
+        try {
+            reservationRepository.saveAndFlush(reservation)
+        } catch (e: DataIntegrityViolationException) {
+            throw DuplicatePendingOrderException(reservation.memberId, reservation.productId)
+        }
 
     private fun restoreStock(reservation: OrderReservation) {
-        when {
-            reservation.reservationKey.startsWith("cas:") ->
-                stockCasManager.increment(reservation.productId, reservation.quantity)
+        if (reservation.reservationKey.startsWith("skip-locked")) {
+            val released = productStockRepository.releaseByReservationId(reservation.id)
 
-            reservation.reservationKey.startsWith("redis-queue:") ->
-                repeat(reservation.quantity) { redisTokenQueueManager.release(reservation.productId) }
-
-            reservation.reservationKey.startsWith("skip-locked-filter:") -> {
-                productStockRepository.releaseByMemberId(reservation.productId, reservation.memberId)
-                redisStockCounter.increment(reservation.productId, reservation.quantity)
+            if (released != reservation.quantity) {
+                throw StockReservationMismatchException(reservation.id, reservation.quantity, released)
             }
 
-            reservation.reservationKey.startsWith("skip-locked:") ->
-                productStockRepository.releaseByMemberId(reservation.productId, reservation.memberId)
-            else -> {
-                val product = productRepository.findById(reservation.productId) ?: return
-                product.increaseStock(reservation.quantity)
-                productRepository.save(product)
-            }
+            return
         }
+
+        val product = productRepository.findByIdWithPessimisticLock(reservation.productId)
+            ?: throw ProductNotFoundException(reservation.productId)
+        product.increaseStock(reservation.quantity)
+        productRepository.save(product)
     }
 }

@@ -30,19 +30,26 @@ data class Product(
     }
 
     fun isHotDealActive(): Boolean {
-        if (!isHotDeal) return false
+        if (!isHotDeal) {
+
+            return false
+        }
+
         val now = LocalDateTime.now()
+
         return hotDealStartTime != null && hotDealEndTime != null &&
                 now.isAfter(hotDealStartTime) && now.isBefore(hotDealEndTime)
     }
 
     fun decreaseStock(quantity: Int) {
+        if (quantity <= 0) throw InvalidOrderQuantityException(quantity)
         if (stock < quantity) throw OutOfStockException(id, quantity, stock)
         stock -= quantity
         updatedAt = LocalDateTime.now()
     }
 
     fun increaseStock(quantity: Int) {
+        if (quantity <= 0) throw InvalidOrderQuantityException(quantity)
         stock = minOf(stock + quantity, totalQuantity)
         updatedAt = LocalDateTime.now()
     }

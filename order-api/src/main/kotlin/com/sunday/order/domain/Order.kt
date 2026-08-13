@@ -11,6 +11,7 @@ data class Order(
     val quantity: Int,
     val unitPrice: BigDecimal,
     val totalAmount: BigDecimal,
+    val status: OrderStatus = OrderStatus.PAID,
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
     init {
@@ -27,7 +28,17 @@ data class Order(
             quantity = reservation.quantity,
             unitPrice = reservation.unitPrice,
             totalAmount = reservation.totalAmount,
+            status = OrderStatus.PAID,
             createdAt = LocalDateTime.now()
         )
+    }
+
+    fun cancel(): Order {
+        if (status == OrderStatus.CANCELLED) {
+
+            return this
+        }
+
+        return copy(status = OrderStatus.CANCELLED)
     }
 }

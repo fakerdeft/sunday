@@ -39,6 +39,9 @@ class ProductStockJpaEntity(
     @Column(name = "reserved_by")
     var reservedBy: Long? = null,
 
+    @Column(name = "reservation_id")
+    var reservationId: Long? = null,
+
     @Column(name = "created_at", nullable = false, updatable = false)
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
@@ -49,6 +52,7 @@ class ProductStockJpaEntity(
             status = domain.status,
             version = domain.version,
             reservedBy = domain.reservedBy,
+            reservationId = domain.reservationId,
             createdAt = domain.createdAt
         )
     }
@@ -59,6 +63,7 @@ class ProductStockJpaEntity(
         status = status,
         version = version,
         reservedBy = reservedBy,
+        reservationId = reservationId,
         createdAt = createdAt
     )
 }

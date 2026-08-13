@@ -10,6 +10,9 @@ class OrderRepository(private val jpaRepository: OrderJpaRepository) {
     fun findByReservationId(reservationId: Long): Order? =
         jpaRepository.findByIdOrNull(reservationId)?.toDomain()
 
+    fun findByReservationIdForUpdate(reservationId: Long): Order? =
+        jpaRepository.findByReservationIdForUpdate(reservationId)?.toDomain()
+
     fun findByMemberId(memberId: Long): List<Order> =
         jpaRepository.findByMemberIdOrderByCreatedAtDesc(memberId).map { it.toDomain() }
 
