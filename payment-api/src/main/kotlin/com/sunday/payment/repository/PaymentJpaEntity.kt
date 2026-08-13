@@ -19,7 +19,7 @@ import java.time.LocalDateTime
     name = "payment",
     schema = "sunday",
     indexes = [
-        Index(name = "idx_payment_order_id", columnList = "order_id"),
+        Index(name = "uq_payment_order_id", columnList = "order_id", unique = true),
         Index(name = "idx_payment_idempotency_key", columnList = "idempotency_key", unique = true)
     ]
 )

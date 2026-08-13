@@ -4,7 +4,6 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.client.SimpleClientHttpRequestFactory
 import org.springframework.stereotype.Component
 import org.springframework.web.client.RestClient
-import java.math.BigDecimal
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -59,12 +58,4 @@ class OrderApiClient(
             .retrieve()
             .toBodilessEntity()
     }
-
-    private data class ReservationResponse(
-        val id: Long,
-        val memberId: Long,
-        val totalAmount: BigDecimal,
-        val status: String,
-        val expireAt: String
-    )
 }

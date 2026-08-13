@@ -27,6 +27,7 @@ class UserIdArgumentResolver : HandlerMethodArgumentResolver {
         binderFactory: WebDataBinderFactory?
     ): Long {
         val userIdHeader = webRequest.getHeader(USER_ID_HEADER) ?: throw MissingUserIdException()
+
         return try {
             userIdHeader.toLong()
         } catch (e: NumberFormatException) {

@@ -1,9 +1,10 @@
-package com.sunday.payment.presentation
+package com.sunday.payment.api
 
 import com.sunday.common.auth.UserId
 import com.sunday.payment.application.PaymentService
-import com.sunday.payment.presentation.dto.PaymentResponse
-import com.sunday.payment.presentation.dto.ProcessPaymentRequest
+import com.sunday.payment.api.dto.PaymentResponse
+import com.sunday.payment.api.dto.ProcessPaymentRequest
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -23,7 +24,7 @@ class PaymentController(
     @ResponseStatus(HttpStatus.OK)
     fun processPayment(
         @UserId memberId: Long,
-        @RequestBody request: ProcessPaymentRequest
+        @Valid @RequestBody request: ProcessPaymentRequest
     ): PaymentResponse {
         return PaymentResponse.from(
             paymentService.processPayment(
@@ -54,7 +55,10 @@ class PaymentController(
 
     @PostMapping("/{paymentId}/refund")
     @ResponseStatus(HttpStatus.OK)
-    fun refundPayment(@PathVariable paymentId: Long): PaymentResponse {
-        return PaymentResponse.from(paymentService.refundPayment(paymentId))
+    fun refundPayment(
+        @UserId memberId: Long,
+        @PathVariable paymentId: Long
+    ): PaymentResponse {
+        return PaymentResponse.from(paymentService.refundPayment(paymentId, memberId))
     }
 }

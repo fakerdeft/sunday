@@ -1,12 +1,7 @@
-package com.sunday.payment.presentation.dto
+package com.sunday.payment.api.dto
 
 import com.sunday.payment.domain.Payment
 import java.math.BigDecimal
-
-data class ProcessPaymentRequest(
-    val orderId: Long,
-    val idempotencyKey: String
-)
 
 data class PaymentResponse(
     val id: Long,

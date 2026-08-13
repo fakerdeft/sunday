@@ -30,8 +30,10 @@ class ReplicationDataSourceConfig {
         @Qualifier("slaveDataSource") slaveDataSource: DataSource
     ): DataSource {
         val routingDataSource = ReplicationRoutingDataSource()
+
         routingDataSource.setTargetDataSources(mapOf<Any, Any>("master" to masterDataSource, "slave" to slaveDataSource))
         routingDataSource.setDefaultTargetDataSource(masterDataSource)
+
         return routingDataSource
     }
 
@@ -44,6 +46,11 @@ class ReplicationDataSourceConfig {
 
 class ReplicationRoutingDataSource : AbstractRoutingDataSource() {
     override fun determineCurrentLookupKey(): Any {
-        return if (TransactionSynchronizationManager.isCurrentTransactionReadOnly()) "slave" else "master"
+        if (TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+
+            return "slave"
+        }
+
+        return "master"
     }
 }

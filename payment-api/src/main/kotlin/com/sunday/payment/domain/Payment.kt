@@ -40,18 +40,40 @@ data class Payment(
         )
     }
 
-    fun complete(): Payment {
+    fun markAccountDebited(): Payment {
         if (status != PaymentStatus.PROCESSING) throw PaymentNotCompletableException(id, status.name)
+
+        return copy(status = PaymentStatus.ACCOUNT_DEBITED, updatedAt = LocalDateTime.now())
+    }
+
+    fun markOrderConfirmed(): Payment {
+        if (status != PaymentStatus.ACCOUNT_DEBITED) throw PaymentNotCompletableException(id, status.name)
+
+        return copy(status = PaymentStatus.ORDER_CONFIRMED, updatedAt = LocalDateTime.now())
+    }
+
+    fun complete(): Payment {
+        if (status != PaymentStatus.ORDER_CONFIRMED) throw PaymentNotCompletableException(id, status.name)
+
         return copy(status = PaymentStatus.COMPLETED, updatedAt = LocalDateTime.now())
     }
 
     fun fail(reason: String): Payment {
-        if (status != PaymentStatus.PROCESSING) throw PaymentNotFailableException(id, status.name)
+        if (status !in setOf(PaymentStatus.PROCESSING, PaymentStatus.ACCOUNT_DEBITED))
+            throw PaymentNotFailableException(id, status.name)
+
         return copy(status = PaymentStatus.FAILED, failureReason = reason, updatedAt = LocalDateTime.now())
     }
 
-    fun refund(): Payment {
+    fun startRefund(): Payment {
         if (status != PaymentStatus.COMPLETED) throw PaymentNotRefundableException(id, status.name)
+
+        return copy(status = PaymentStatus.REFUND_PROCESSING, updatedAt = LocalDateTime.now())
+    }
+
+    fun refund(): Payment {
+        if (status != PaymentStatus.REFUND_PROCESSING) throw PaymentNotRefundableException(id, status.name)
+
         return copy(status = PaymentStatus.REFUNDED, updatedAt = LocalDateTime.now())
     }
 }

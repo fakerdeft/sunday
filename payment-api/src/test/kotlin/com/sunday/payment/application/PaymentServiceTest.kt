@@ -1,20 +1,16 @@
 package com.sunday.payment.application
 
-import com.fasterxml.jackson.databind.ObjectMapper
 import com.sunday.payment.client.AccountApiClient
+import com.sunday.payment.client.OperationInfo
 import com.sunday.payment.client.OrderApiClient
 import com.sunday.payment.client.ReservationInfo
 import com.sunday.payment.domain.Payment
 import com.sunday.payment.domain.PaymentStatus
 import com.sunday.payment.domain.exception.DuplicatePaymentException
-import com.sunday.payment.domain.exception.OrderNotPayableForPaymentException
-import com.sunday.payment.domain.exception.PaymentAlreadyCompletedException
+import com.sunday.payment.domain.exception.PaymentNotFoundException
 import com.sunday.payment.domain.exception.PaymentNotRefundableException
 import com.sunday.payment.domain.exception.PaymentProcessFailedException
-import com.sunday.payment.repository.OutboxEvent
-import com.sunday.payment.repository.OutboxRepository
 import com.sunday.payment.repository.PaymentRepository
-import com.sunday.payment.repository.RedisPaymentRepository
 import io.mockk.every
 import io.mockk.justRun
 import io.mockk.mockk
@@ -23,273 +19,325 @@ import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.springframework.context.ApplicationContext
 import java.math.BigDecimal
 import java.time.LocalDateTime
 
 class PaymentServiceTest {
 
-    private val paymentRepository = mockk<PaymentRepository>()
-    private val redisPaymentRepository = mockk<RedisPaymentRepository>()
-    private val accountApiClient = mockk<AccountApiClient>()
-    private val orderApiClient = mockk<OrderApiClient>()
-    private val outboxRepository = mockk<OutboxRepository>()
-    private val objectMapper = mockk<ObjectMapper>()
-    private val applicationContext = mockk<ApplicationContext>()
-
+    private lateinit var paymentRepository: PaymentRepository
+    private lateinit var accountApiClient: AccountApiClient
+    private lateinit var orderApiClient: OrderApiClient
+    private lateinit var paymentTransactionService: PaymentTransactionService
     private lateinit var paymentService: PaymentService
 
     @BeforeEach
     fun setUp() {
+        paymentRepository = mockk()
+        accountApiClient = mockk()
+        orderApiClient = mockk()
+        paymentTransactionService = PaymentTransactionService(paymentRepository)
         paymentService = PaymentService(
-            paymentRepository,
-            redisPaymentRepository,
+            paymentTransactionService,
             accountApiClient,
-            orderApiClient,
-            outboxRepository,
-            objectMapper
+            orderApiClient
         )
-        val field = PaymentService::class.java.getDeclaredField("applicationContext")
-        field.isAccessible = true
-        field.set(paymentService, applicationContext)
-        every { applicationContext.getBean(PaymentService::class.java) } returns paymentService
     }
 
-    // ========================
-    // processPayment - 성공
-    // ========================
     @Test
-    fun `processPayment - 결제 성공 시 COMPLETED 반환`() {
-        val (orderId, memberId, idempotencyKey, amount) = fixture()
-        val reservationInfo = ReservationInfo(orderId, memberId, amount, "PENDING", false)
-        val processingPayment = buildPayment(1L, orderId, memberId, amount, PaymentStatus.PROCESSING)
-        val completedPayment = processingPayment.copy(status = PaymentStatus.COMPLETED)
-        val outboxEvent = mockk<OutboxEvent>()
+    fun `payment advances through acknowledged stages`() {
+        val processing = payment(status = PaymentStatus.PROCESSING)
+        val debited = processing.copy(status = PaymentStatus.ACCOUNT_DEBITED)
+        val confirmed = processing.copy(status = PaymentStatus.ORDER_CONFIRMED)
+        val completed = processing.copy(status = PaymentStatus.COMPLETED)
+        val reservation = reservation(status = "PENDING")
 
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
-        every { redisPaymentRepository.registerIdempotencyKey(idempotencyKey, any()) } returns true
-        every { orderApiClient.getReservationInfo(orderId) } returns reservationInfo
-        every { paymentRepository.findByOrderId(orderId) } returns null
-        every { paymentRepository.save(match { it.status == PaymentStatus.PROCESSING }) } returns processingPayment
-        justRun { accountApiClient.withdraw(memberId, amount, any()) }
-        justRun { orderApiClient.confirmReservation(orderId) }
-        every { paymentRepository.save(match { it.status == PaymentStatus.COMPLETED }) } returns completedPayment
-        every { objectMapper.writeValueAsString(any()) } returns "{}"
-        every { outboxRepository.save(any()) } returns outboxEvent
+        every { paymentRepository.findByIdempotencyKey(KEY) } returns null
+        every { paymentRepository.findByOrderId(ORDER_ID) } returns null
+        every { orderApiClient.getReservationInfo(ORDER_ID) } returns reservation
+        every { paymentRepository.saveAndFlush(any()) } returns processing
+        justRun { accountApiClient.withdraw(MEMBER_ID, AMOUNT, any(), "payment:1:charge") }
+        every { paymentRepository.findByIdForUpdate(1L) } returnsMany listOf(processing, debited, confirmed)
+        every { paymentRepository.save(match { it.status == PaymentStatus.ACCOUNT_DEBITED }) } returns debited
+        justRun { orderApiClient.confirmReservation(ORDER_ID) }
+        every { paymentRepository.save(match { it.status == PaymentStatus.ORDER_CONFIRMED }) } returns confirmed
+        every { paymentRepository.save(match { it.status == PaymentStatus.COMPLETED }) } returns completed
 
-        val result = paymentService.processPayment(orderId, memberId, idempotencyKey)
+        val result = paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY)
 
         assertThat(result.status).isEqualTo(PaymentStatus.COMPLETED)
-        verify(exactly = 1) { accountApiClient.withdraw(memberId, amount, any()) }
-        verify(exactly = 1) { orderApiClient.confirmReservation(orderId) }
-        verify(exactly = 0) { accountApiClient.deposit(any(), any(), any()) }
+        verify(exactly = 1) { accountApiClient.withdraw(MEMBER_ID, AMOUNT, any(), "payment:1:charge") }
+        verify(exactly = 1) { orderApiClient.confirmReservation(ORDER_ID) }
+        verify(exactly = 0) { accountApiClient.deposit(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `completed payment retry returns existing result without external calls`() {
+        val completed = payment(status = PaymentStatus.COMPLETED)
+
+        every { paymentRepository.findByIdempotencyKey(KEY) } returns completed
+
+        val result = paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY)
+
+        assertThat(result).isEqualTo(completed)
+        verify(exactly = 0) { orderApiClient.getReservationInfo(any()) }
+        verify(exactly = 0) { accountApiClient.withdraw(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `different key for an already paid order is rejected before calling order API`() {
+        val completed = payment(status = PaymentStatus.COMPLETED)
+
+        every { paymentRepository.findByIdempotencyKey(OTHER_KEY) } returns null
+        every { paymentRepository.findByOrderId(ORDER_ID) } returns completed
+
+        assertThatThrownBy { paymentService.processPayment(ORDER_ID, MEMBER_ID, OTHER_KEY) }
+            .isInstanceOf(DuplicatePaymentException::class.java)
+
+        verify(exactly = 0) { orderApiClient.getReservationInfo(any()) }
+        verify(exactly = 0) { accountApiClient.withdraw(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `late concurrent request is classified as duplicate after order becomes confirmed`() {
+        val completed = payment(status = PaymentStatus.COMPLETED)
+
+        every { paymentRepository.findByIdempotencyKey(OTHER_KEY) } returns null
+        every { paymentRepository.findByOrderId(ORDER_ID) } returnsMany listOf(null, completed)
+        every { orderApiClient.getReservationInfo(ORDER_ID) } returns reservation(status = "CONFIRMED")
+
+        assertThatThrownBy { paymentService.processPayment(ORDER_ID, MEMBER_ID, OTHER_KEY) }
+            .isInstanceOf(DuplicatePaymentException::class.java)
+
+        verify(exactly = 1) { orderApiClient.getReservationInfo(ORDER_ID) }
+        verify(exactly = 0) { accountApiClient.withdraw(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `unknown debit response remains processing and retries with the same operation id`() {
+        val processing = payment(status = PaymentStatus.PROCESSING)
+        val debited = processing.copy(status = PaymentStatus.ACCOUNT_DEBITED)
+        val confirmed = processing.copy(status = PaymentStatus.ORDER_CONFIRMED)
+        val completed = processing.copy(status = PaymentStatus.COMPLETED)
+
+        every { paymentRepository.findByIdempotencyKey(KEY) } returns processing
+        every { orderApiClient.getReservationInfo(ORDER_ID) } returns reservation(status = "PENDING")
+        every {
+            accountApiClient.withdraw(MEMBER_ID, AMOUNT, any(), "payment:1:charge")
+        } throws RuntimeException("timeout")
+        every { accountApiClient.getOperation("payment:1:charge") } returns
+            OperationInfo(found = false)
+
+        assertThatThrownBy { paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY) }
+            .isInstanceOf(PaymentProcessFailedException::class.java)
+
+        justRun { accountApiClient.withdraw(MEMBER_ID, AMOUNT, any(), "payment:1:charge") }
+        every { paymentRepository.findByIdForUpdate(1L) } returnsMany listOf(processing, debited, confirmed)
+        every { paymentRepository.save(match { it.status == PaymentStatus.ACCOUNT_DEBITED }) } returns debited
+        justRun { orderApiClient.confirmReservation(ORDER_ID) }
+        every { paymentRepository.save(match { it.status == PaymentStatus.ORDER_CONFIRMED }) } returns confirmed
+        every { paymentRepository.save(match { it.status == PaymentStatus.COMPLETED }) } returns completed
+
+        val retried = paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY)
+
+        assertThat(retried.status).isEqualTo(PaymentStatus.COMPLETED)
+        verify(exactly = 2) { accountApiClient.withdraw(MEMBER_ID, AMOUNT, any(), "payment:1:charge") }
+    }
+
+    @Test
+    fun `debit timeout continues when operation lookup proves the charge`() {
+        val processing = payment(status = PaymentStatus.PROCESSING)
+        val debited = processing.copy(status = PaymentStatus.ACCOUNT_DEBITED)
+        val confirmed = processing.copy(status = PaymentStatus.ORDER_CONFIRMED)
+        val completed = processing.copy(status = PaymentStatus.COMPLETED)
+
+        every { paymentRepository.findByIdempotencyKey(KEY) } returns processing
+        every { orderApiClient.getReservationInfo(ORDER_ID) } returns reservation(status = "PENDING")
+        every {
+            accountApiClient.withdraw(MEMBER_ID, AMOUNT, any(), "payment:1:charge")
+        } throws RuntimeException("timeout after commit")
+        every { accountApiClient.getOperation("payment:1:charge") } returns OperationInfo(
+            found = true,
+            memberId = MEMBER_ID,
+            transactionType = "WITHDRAWAL",
+            amount = AMOUNT
+        )
+        every { paymentRepository.findByIdForUpdate(1L) } returnsMany listOf(processing, debited, confirmed)
+        every { paymentRepository.save(match { it.status == PaymentStatus.ACCOUNT_DEBITED }) } returns debited
+        justRun { orderApiClient.confirmReservation(ORDER_ID) }
+        every { paymentRepository.save(match { it.status == PaymentStatus.ORDER_CONFIRMED }) } returns confirmed
+        every { paymentRepository.save(match { it.status == PaymentStatus.COMPLETED }) } returns completed
+
+        val result = paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY)
+
+        assertThat(result.status).isEqualTo(PaymentStatus.COMPLETED)
+        verify(exactly = 1) { accountApiClient.getOperation("payment:1:charge") }
+        verify(exactly = 0) { accountApiClient.deposit(any(), any(), any(), any()) }
+    }
+
+    @Test
+    fun `late debit discovered after expiry is reversed instead of charged again`() {
+        val processing = payment(status = PaymentStatus.PROCESSING)
+        val debited = processing.copy(status = PaymentStatus.ACCOUNT_DEBITED)
+        val failed = processing.copy(status = PaymentStatus.FAILED, failureReason = "expired")
+
+        every { paymentRepository.findByIdempotencyKey(KEY) } returns processing
+        every { orderApiClient.getReservationInfo(ORDER_ID) } returns
+            reservation(status = "EXPIRED", expired = true)
+        every { accountApiClient.getOperation("payment:1:charge") } returns OperationInfo(
+            found = true,
+            memberId = MEMBER_ID,
+            transactionType = "WITHDRAWAL",
+            amount = AMOUNT
+        )
+        every { paymentRepository.findByIdForUpdate(1L) } returnsMany listOf(processing, debited)
+        every { paymentRepository.save(match { it.status == PaymentStatus.ACCOUNT_DEBITED }) } returns debited
+        justRun {
+            accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:charge-reversal")
+        }
+        every { paymentRepository.save(match { it.status == PaymentStatus.FAILED }) } returns failed
+
+        assertThatThrownBy { paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY) }
+            .isInstanceOf(PaymentProcessFailedException::class.java)
+
+        verify(exactly = 0) { accountApiClient.withdraw(any(), any(), any(), any()) }
+        verify(exactly = 1) {
+            accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:charge-reversal")
+        }
+    }
+
+    @Test
+    fun `confirmation timeout reconciles confirmed reservation without refund`() {
+        val debited = payment(status = PaymentStatus.ACCOUNT_DEBITED)
+        val confirmed = debited.copy(status = PaymentStatus.ORDER_CONFIRMED)
+        val completed = debited.copy(status = PaymentStatus.COMPLETED)
+
+        every { paymentRepository.findByIdempotencyKey(KEY) } returns debited
+        every { orderApiClient.getReservationInfo(ORDER_ID) } returnsMany listOf(
+            reservation(status = "PENDING"),
+            reservation(status = "CONFIRMED")
+        )
+        every { orderApiClient.confirmReservation(ORDER_ID) } throws RuntimeException("timeout")
+        every { paymentRepository.findByIdForUpdate(1L) } returnsMany listOf(debited, confirmed)
+        every { paymentRepository.save(match { it.status == PaymentStatus.ORDER_CONFIRMED }) } returns confirmed
+        every { paymentRepository.save(match { it.status == PaymentStatus.COMPLETED }) } returns completed
+
+        val result = paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY)
+
+        assertThat(result.status).isEqualTo(PaymentStatus.COMPLETED)
+        verify(exactly = 0) { accountApiClient.deposit(any(), any(), any(), any()) }
         verify(exactly = 0) { orderApiClient.cancelReservation(any()) }
     }
 
-    // ========================
-    // processPayment - 멱등성
-    // ========================
     @Test
-    fun `processPayment - 멱등성 키 중복 시 기존 결제 반환`() {
-        val idempotencyKey = "duplicate-key"
-        val existingPayment = buildPayment(1L, 1L, 1L, BigDecimal("10000"), PaymentStatus.COMPLETED)
+    fun `expired reservation is cancelled before an idempotent charge reversal`() {
+        val debited = payment(status = PaymentStatus.ACCOUNT_DEBITED)
+        val failed = debited.copy(status = PaymentStatus.FAILED, failureReason = "expired")
 
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns existingPayment
+        every { paymentRepository.findByIdempotencyKey(KEY) } returns debited
+        every { orderApiClient.getReservationInfo(ORDER_ID) } returnsMany listOf(
+            reservation(status = "PENDING", expired = true),
+            reservation(status = "PENDING", expired = true),
+            reservation(status = "CANCELLED", expired = true)
+        )
+        justRun { orderApiClient.cancelReservation(ORDER_ID) }
+        justRun {
+            accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:charge-reversal")
+        }
+        every { paymentRepository.findByIdForUpdate(1L) } returns debited
+        every { paymentRepository.save(match { it.status == PaymentStatus.FAILED }) } returns failed
 
-        val result = paymentService.processPayment(1L, 1L, idempotencyKey)
+        assertThatThrownBy { paymentService.processPayment(ORDER_ID, MEMBER_ID, KEY) }
+            .isInstanceOf(PaymentProcessFailedException::class.java)
 
-        assertThat(result).isEqualTo(existingPayment)
-        verify(exactly = 0) { orderApiClient.getReservationInfo(any()) }
-        verify(exactly = 0) { accountApiClient.withdraw(any(), any(), any()) }
+        verify(exactly = 1) { orderApiClient.cancelReservation(ORDER_ID) }
+        verify(exactly = 1) {
+            accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:charge-reversal")
+        }
     }
 
     @Test
-    fun `processPayment - Redis 멱등성 키 충돌 시 DuplicatePaymentException`() {
-        val (orderId, memberId, idempotencyKey, _) = fixture()
+    fun `refund is resumable and credits the account only once`() {
+        val completed = payment(status = PaymentStatus.COMPLETED)
+        val refunding = completed.copy(status = PaymentStatus.REFUND_PROCESSING)
+        val refunded = completed.copy(status = PaymentStatus.REFUNDED)
 
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
-        every { redisPaymentRepository.registerIdempotencyKey(idempotencyKey, any()) } returns false
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
+        every { paymentRepository.findByIdForUpdate(1L) } returnsMany listOf(completed, refunding, refunded)
+        every { paymentRepository.save(match { it.status == PaymentStatus.REFUND_PROCESSING }) } returns refunding
+        justRun { orderApiClient.cancelOrder(ORDER_ID) }
+        justRun { accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:refund") }
+        every { paymentRepository.save(match { it.status == PaymentStatus.REFUNDED }) } returns refunded
 
-        assertThatThrownBy {
-            paymentService.processPayment(orderId, memberId, idempotencyKey)
-        }.isInstanceOf(DuplicatePaymentException::class.java)
-    }
+        val first = paymentService.refundPayment(1L, MEMBER_ID)
+        val retry = paymentService.refundPayment(1L, MEMBER_ID)
 
-    // ========================
-    // processPayment - 선점 검증 실패
-    // ========================
-    @Test
-    fun `processPayment - 선점 만료 시 결제 불가`() {
-        val (orderId, memberId, idempotencyKey, amount) = fixture()
-        val expiredReservation = ReservationInfo(orderId, memberId, amount, "PENDING", isExpired = true)
-
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
-        every { redisPaymentRepository.registerIdempotencyKey(idempotencyKey, any()) } returns true
-        every { orderApiClient.getReservationInfo(orderId) } returns expiredReservation
-        every { paymentRepository.findByOrderId(orderId) } returns null
-
-        assertThatThrownBy {
-            paymentService.processPayment(orderId, memberId, idempotencyKey)
-        }.isInstanceOf(OrderNotPayableForPaymentException::class.java)
+        assertThat(first.status).isEqualTo(PaymentStatus.REFUNDED)
+        assertThat(retry.status).isEqualTo(PaymentStatus.REFUNDED)
+        verify(exactly = 1) { orderApiClient.cancelOrder(ORDER_ID) }
+        verify(exactly = 1) { accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:refund") }
     }
 
     @Test
-    fun `processPayment - 타 회원 선점으로 결제 불가`() {
-        val (orderId, memberId, idempotencyKey, amount) = fixture()
-        val otherMemberReservation = ReservationInfo(orderId, memberId = 999L, amount, "PENDING", false)
+    fun `refund failure keeps refund processing state for retry`() {
+        val completed = payment(status = PaymentStatus.COMPLETED)
+        val refunding = completed.copy(status = PaymentStatus.REFUND_PROCESSING)
+        val refunded = completed.copy(status = PaymentStatus.REFUNDED)
 
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
-        every { redisPaymentRepository.registerIdempotencyKey(idempotencyKey, any()) } returns true
-        every { orderApiClient.getReservationInfo(orderId) } returns otherMemberReservation
-        every { paymentRepository.findByOrderId(orderId) } returns null
+        every { paymentRepository.findByIdForUpdate(1L) } returnsMany listOf(completed, refunding, refunding)
+        every { paymentRepository.save(match { it.status == PaymentStatus.REFUND_PROCESSING }) } returns refunding
+        every { orderApiClient.cancelOrder(ORDER_ID) } throws RuntimeException("timeout")
 
-        assertThatThrownBy {
-            paymentService.processPayment(orderId, memberId, idempotencyKey)
-        }.isInstanceOf(OrderNotPayableForPaymentException::class.java)
+        assertThatThrownBy { paymentService.refundPayment(1L, MEMBER_ID) }
+            .isInstanceOf(PaymentProcessFailedException::class.java)
+
+        justRun { orderApiClient.cancelOrder(ORDER_ID) }
+        justRun { accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:refund") }
+        every { paymentRepository.save(match { it.status == PaymentStatus.REFUNDED }) } returns refunded
+
+        val retried = paymentService.refundPayment(1L, MEMBER_ID)
+
+        assertThat(retried.status).isEqualTo(PaymentStatus.REFUNDED)
+        verify(exactly = 2) { orderApiClient.cancelOrder(ORDER_ID) }
+        verify(exactly = 1) { accountApiClient.deposit(MEMBER_ID, AMOUNT, any(), "payment:1:refund") }
     }
 
     @Test
-    fun `processPayment - 이미 결제 완료된 주문 재결제 시 PaymentAlreadyCompletedException`() {
-        val (orderId, memberId, idempotencyKey, amount) = fixture()
-        val reservationInfo = ReservationInfo(orderId, memberId, amount, "PENDING", false)
-        val completedPayment = buildPayment(1L, orderId, memberId, amount, PaymentStatus.COMPLETED)
+    fun `refund hides another members payment`() {
+        every { paymentRepository.findByIdForUpdate(1L) } returns payment(status = PaymentStatus.COMPLETED)
 
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
-        every { redisPaymentRepository.registerIdempotencyKey(idempotencyKey, any()) } returns true
-        every { orderApiClient.getReservationInfo(orderId) } returns reservationInfo
-        every { paymentRepository.findByOrderId(orderId) } returns completedPayment
+        assertThatThrownBy { paymentService.refundPayment(1L, 999L) }
+            .isInstanceOf(PaymentNotFoundException::class.java)
 
-        assertThatThrownBy {
-            paymentService.processPayment(orderId, memberId, idempotencyKey)
-        }.isInstanceOf(PaymentAlreadyCompletedException::class.java)
-    }
-
-    // ========================
-    // processPayment - 보상 트랜잭션
-    // ========================
-    @Test
-    fun `processPayment - 잔액 차감 실패 시 선점 취소 호출 및 FAILED`() {
-        val (orderId, memberId, idempotencyKey, amount) = fixture()
-        val reservationInfo = ReservationInfo(orderId, memberId, amount, "PENDING", false)
-        val processingPayment = buildPayment(1L, orderId, memberId, amount, PaymentStatus.PROCESSING)
-
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
-        every { redisPaymentRepository.registerIdempotencyKey(idempotencyKey, any()) } returns true
-        every { orderApiClient.getReservationInfo(orderId) } returns reservationInfo
-        every { paymentRepository.findByOrderId(orderId) } returns null
-        every { paymentRepository.save(match { it.status == PaymentStatus.PROCESSING }) } returns processingPayment
-        every { accountApiClient.withdraw(memberId, amount, any()) } throws RuntimeException("잔액 부족")
-        justRun { orderApiClient.cancelReservation(orderId) }
-        every { paymentRepository.save(match { it.status == PaymentStatus.FAILED }) } returns processingPayment.copy(status = PaymentStatus.FAILED)
-
-        assertThatThrownBy {
-            paymentService.processPayment(orderId, memberId, idempotencyKey)
-        }.isInstanceOf(PaymentProcessFailedException::class.java)
-
-        verify(exactly = 0) { accountApiClient.deposit(any(), any(), any()) }
-        verify(exactly = 1) { orderApiClient.cancelReservation(orderId) }
-        verify(exactly = 1) { paymentRepository.save(match { it.status == PaymentStatus.FAILED }) }
+        verify(exactly = 0) { orderApiClient.cancelOrder(any()) }
+        verify(exactly = 0) { accountApiClient.deposit(any(), any(), any(), any()) }
     }
 
     @Test
-    fun `processPayment - 확정 주문 생성 실패 시 잔액 복구 및 선점 취소 호출`() {
-        val (orderId, memberId, idempotencyKey, amount) = fixture()
-        val reservationInfo = ReservationInfo(orderId, memberId, amount, "PENDING", false)
-        val processingPayment = buildPayment(1L, orderId, memberId, amount, PaymentStatus.PROCESSING)
+    fun `non completed payment cannot start refund`() {
+        every { paymentRepository.findByIdForUpdate(1L) } returns payment(status = PaymentStatus.FAILED)
 
-        every { paymentRepository.findByIdempotencyKey(idempotencyKey) } returns null
-        every { redisPaymentRepository.registerIdempotencyKey(idempotencyKey, any()) } returns true
-        every { orderApiClient.getReservationInfo(orderId) } returns reservationInfo
-        every { paymentRepository.findByOrderId(orderId) } returns null
-        every { paymentRepository.save(match { it.status == PaymentStatus.PROCESSING }) } returns processingPayment
-        justRun { accountApiClient.withdraw(memberId, amount, any()) }
-        every { orderApiClient.confirmReservation(orderId) } throws RuntimeException("주문 서버 오류")
-        justRun { accountApiClient.deposit(memberId, amount, any()) }
-        justRun { orderApiClient.cancelReservation(orderId) }
-        every { paymentRepository.save(match { it.status == PaymentStatus.FAILED }) } returns processingPayment.copy(status = PaymentStatus.FAILED)
-
-        assertThatThrownBy {
-            paymentService.processPayment(orderId, memberId, idempotencyKey)
-        }.isInstanceOf(PaymentProcessFailedException::class.java)
-
-        verify(exactly = 1) { accountApiClient.deposit(memberId, amount, any()) }
-        verify(exactly = 1) { orderApiClient.cancelReservation(orderId) }
-        verify(exactly = 1) { paymentRepository.save(match { it.status == PaymentStatus.FAILED }) }
+        assertThatThrownBy { paymentService.refundPayment(1L, MEMBER_ID) }
+            .isInstanceOf(PaymentNotRefundableException::class.java)
     }
 
-    // ========================
-    // refundPayment
-    // ========================
-    @Test
-    fun `refundPayment - 환불 성공 시 잔액 복구 및 주문 취소`() {
-        val paymentId = 1L
-        val completedPayment = buildPayment(paymentId, 1L, 1L, BigDecimal("10000"), PaymentStatus.COMPLETED)
-        val refundedPayment = completedPayment.copy(status = PaymentStatus.REFUNDED)
-        val outboxEvent = mockk<OutboxEvent>()
+    private fun reservation(status: String, expired: Boolean = false) =
+        ReservationInfo(ORDER_ID, MEMBER_ID, AMOUNT, status, expired)
 
-        every { paymentRepository.findById(paymentId) } returns completedPayment
-        justRun { accountApiClient.deposit(any(), any(), any()) }
-        justRun { orderApiClient.cancelOrder(any()) }
-        every { paymentRepository.save(match { it.status == PaymentStatus.REFUNDED }) } returns refundedPayment
-        every { objectMapper.writeValueAsString(any()) } returns "{}"
-        every { outboxRepository.save(any()) } returns outboxEvent
-
-        val result = paymentService.refundPayment(paymentId)
-
-        assertThat(result.status).isEqualTo(PaymentStatus.REFUNDED)
-        verify(exactly = 1) { accountApiClient.deposit(any(), any(), any()) }
-        verify(exactly = 1) { orderApiClient.cancelOrder(1L) }
-    }
-
-    @Test
-    fun `refundPayment - 주문 취소 실패 시 잔액 재차감 보상 호출`() {
-        val paymentId = 1L
-        val amount = BigDecimal("10000")
-        val completedPayment = buildPayment(paymentId, 1L, 1L, amount, PaymentStatus.COMPLETED)
-
-        every { paymentRepository.findById(paymentId) } returns completedPayment
-        justRun { accountApiClient.deposit(any(), any(), any()) }
-        every { orderApiClient.cancelOrder(any()) } throws RuntimeException("주문 서버 오류")
-        justRun { accountApiClient.withdraw(any(), any(), any()) }
-
-        assertThatThrownBy {
-            paymentService.refundPayment(paymentId)
-        }.isInstanceOf(RuntimeException::class.java)
-
-        verify(exactly = 1) { accountApiClient.deposit(any(), any(), any()) }
-        verify(exactly = 1) { accountApiClient.withdraw(completedPayment.memberId, amount, any()) }
-    }
-
-    @Test
-    fun `refundPayment - COMPLETED 아닌 결제 환불 시 PaymentNotRefundableException`() {
-        val paymentId = 1L
-        val failedPayment = buildPayment(paymentId, 1L, 1L, BigDecimal("10000"), PaymentStatus.FAILED)
-
-        every { paymentRepository.findById(paymentId) } returns failedPayment
-
-        assertThatThrownBy {
-            paymentService.refundPayment(paymentId)
-        }.isInstanceOf(PaymentNotRefundableException::class.java)
-    }
-
-    // ========================
-    // helpers
-    // ========================
-    private data class Fixture(val orderId: Long, val memberId: Long, val idempotencyKey: String, val amount: BigDecimal)
-
-    private fun fixture() = Fixture(1L, 1L, "test-key", BigDecimal("10000"))
-
-    private fun buildPayment(
-        id: Long, orderId: Long, memberId: Long, amount: BigDecimal, status: PaymentStatus
-    ) = Payment(
-        id = id,
-        orderId = orderId,
-        memberId = memberId,
-        amount = amount,
+    private fun payment(status: PaymentStatus) = Payment(
+        id = 1L,
+        orderId = ORDER_ID,
+        memberId = MEMBER_ID,
+        amount = AMOUNT,
         status = status,
-        idempotencyKey = "key-$id",
+        idempotencyKey = KEY,
         createdAt = LocalDateTime.now(),
         updatedAt = LocalDateTime.now()
     )
+
+    companion object {
+        private const val ORDER_ID = 100L
+        private const val MEMBER_ID = 10L
+        private const val KEY = "payment-request-key"
+        private const val OTHER_KEY = "another-payment-request-key"
+        private val AMOUNT = BigDecimal("10000")
+    }
 }

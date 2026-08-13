@@ -10,6 +10,9 @@ class PaymentRepository(private val jpaRepository: PaymentJpaRepository) {
     fun findById(id: Long): Payment? =
         jpaRepository.findByIdOrNull(id)?.toDomain()
 
+    fun findByIdForUpdate(id: Long): Payment? =
+        jpaRepository.findByIdForUpdate(id)?.toDomain()
+
     fun findByOrderId(orderId: Long): Payment? =
         jpaRepository.findByOrderId(orderId)?.toDomain()
 
@@ -21,4 +24,7 @@ class PaymentRepository(private val jpaRepository: PaymentJpaRepository) {
 
     fun save(domain: Payment): Payment =
         jpaRepository.save(PaymentJpaEntity.from(domain)).toDomain()
+
+    fun saveAndFlush(domain: Payment): Payment =
+        jpaRepository.saveAndFlush(PaymentJpaEntity.from(domain)).toDomain()
 }

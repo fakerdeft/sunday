@@ -1,229 +1,362 @@
 package com.sunday.payment.application
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.sunday.support.infra.lock.DistributedLock
 import com.sunday.payment.client.AccountApiClient
 import com.sunday.payment.client.OrderApiClient
+import com.sunday.payment.client.ReservationInfo
 import com.sunday.payment.domain.Payment
 import com.sunday.payment.domain.PaymentStatus
 import com.sunday.payment.domain.exception.DuplicatePaymentException
 import com.sunday.payment.domain.exception.OrderNotPayableForPaymentException
-import com.sunday.payment.domain.exception.PaymentAlreadyCompletedException
-import com.sunday.payment.domain.exception.PaymentNotFoundException
-import com.sunday.payment.domain.exception.PaymentNotFoundByOrderException
 import com.sunday.payment.domain.exception.PaymentProcessFailedException
-import com.sunday.payment.repository.OutboxAggregateType
-import com.sunday.payment.repository.OutboxEvent
-import com.sunday.payment.repository.OutboxEventType
-import com.sunday.payment.repository.OutboxRepository
-import com.sunday.payment.repository.PaymentCompletedPayload
-import com.sunday.payment.repository.PaymentRefundedPayload
-import com.sunday.payment.repository.PaymentRepository
-import com.sunday.payment.repository.RedisPaymentRepository
 import org.apache.logging.log4j.LogManager
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.context.ApplicationContext
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 
 @Service
 class PaymentService(
-    private val paymentRepository: PaymentRepository,
-    private val redisPaymentRepository: RedisPaymentRepository,
+    private val paymentTransactionService: PaymentTransactionService,
     private val accountApiClient: AccountApiClient,
-    private val orderApiClient: OrderApiClient,
-    private val outboxRepository: OutboxRepository,
-    private val objectMapper: ObjectMapper
+    private val orderApiClient: OrderApiClient
 ) {
-    @Autowired
-    private lateinit var applicationContext: ApplicationContext
-
-    private val self: PaymentService get() = applicationContext.getBean(PaymentService::class.java)
-
     private val log = LogManager.getLogger(javaClass)
 
-    companion object {
-        private const val IDEMPOTENCY_TTL_SECONDS = 86400L
+    /**
+     * 외부 API 호출은 DB 트랜잭션 밖에서 실행한다. 각 단계는 고정된 작업 키로 재시도하고,
+     * 성공 응답을 확인한 뒤 짧은 로컬 트랜잭션으로 다음 상태를 기록한다.
+     */
+    fun processPayment(reservationId: Long, memberId: Long, idempotencyKey: String): Payment {
+        val existing = paymentTransactionService.findByIdempotencyKey(idempotencyKey)
+
+        if (existing != null) {
+            validateSameRequest(existing, reservationId, memberId, idempotencyKey)
+
+            return processByStatus(existing)
+        }
+
+        val payment = initializePayment(reservationId, memberId, idempotencyKey)
+
+        return processByStatus(payment)
     }
 
-    @DistributedLock(key = "'payment:order:' + #reservationId", waitTime = 3, leaseTime = 30)
-    fun processPayment(reservationId: Long, memberId: Long, idempotencyKey: String): Payment {
-        // 1. 멱등성 체크
-        val existingPayment = paymentRepository.findByIdempotencyKey(idempotencyKey)
-        if (existingPayment != null) {
-            log.info("기존 결제 반환: idempotencyKey=$idempotencyKey")
-            return existingPayment
+    private fun processByStatus(payment: Payment): Payment {
+        return when (payment.status) {
+            PaymentStatus.COMPLETED,
+            PaymentStatus.REFUNDED,
+            PaymentStatus.REFUND_PROCESSING -> payment
+
+            PaymentStatus.FAILED -> throw PaymentProcessFailedException(
+                payment.orderId,
+                payment.failureReason ?: "결제 처리에 실패했습니다"
+            )
+
+            else -> resumePayment(payment)
+        }
+    }
+
+    private fun initializePayment(reservationId: Long, memberId: Long, idempotencyKey: String): Payment {
+        val existing = findExistingPaymentForOrder(reservationId, memberId, idempotencyKey)
+
+        if (existing != null) {
+
+            return existing
         }
 
-        // 2. 멱등성 키 등록 (동시 요청 방지)
-        if (!redisPaymentRepository.registerIdempotencyKey(idempotencyKey, IDEMPOTENCY_TTL_SECONDS)) {
-            val payment = paymentRepository.findByIdempotencyKey(idempotencyKey)
-            if (payment != null) return payment
-            throw DuplicatePaymentException(idempotencyKey)
-        }
+        val reservation = orderApiClient.getReservationInfo(reservationId)
 
-        // 3. 선점 검증
-        val reservationInfo = orderApiClient.getReservationInfo(reservationId)
+        validateReservationOwnerAndAmount(reservation, memberId, expectedAmount = null)
 
-        if (reservationInfo.memberId != memberId) {
-            throw OrderNotPayableForPaymentException(reservationId, "해당 회원의 선점이 아닙니다")
-        }
+        if (!reservation.canPay()) {
+            // A concurrent request may have completed the order after the first DB lookup.
+            val concurrent = findExistingPaymentForOrder(reservationId, memberId, idempotencyKey)
 
-        if (!reservationInfo.canPay()) {
+            if (concurrent != null) {
+
+                return concurrent
+            }
+
             throw OrderNotPayableForPaymentException(
                 reservationId,
-                "선점 상태: ${reservationInfo.status}, 만료 여부: ${reservationInfo.isExpired}"
+                "예약 상태=${reservation.status}, 만료=${reservation.isExpired}"
             )
         }
 
-        val existingOrderPayment = paymentRepository.findByOrderId(reservationId)
-        if (existingOrderPayment != null && existingOrderPayment.status == PaymentStatus.COMPLETED) {
-            throw PaymentAlreadyCompletedException(reservationId)
-        }
-
-        val payment = paymentRepository.save(
-            Payment.create(
-                orderId = reservationId,
+        return try {
+            paymentTransactionService.createProcessingPayment(
+                reservationId = reservationId,
                 memberId = memberId,
-                amount = reservationInfo.totalAmount,
+                amount = reservation.totalAmount,
                 idempotencyKey = idempotencyKey
             )
-        )
-
-        var accountCharged = false
-        try {
-            // 4. 잔액 차감
-            accountApiClient.withdraw(
-                memberId = memberId,
-                amount = reservationInfo.totalAmount,
-                description = "주문 결제 (선점번호: $reservationId)"
-            )
-            accountCharged = true
-
-            // 5. 확정 주문 생성 (선점 → PAID Order)
-            orderApiClient.confirmReservation(reservationId)
-
-            // 6. 결제 완료 + Outbox 원자적 저장
-            return self.completePaymentWithOutbox(payment, reservationId, memberId, reservationInfo.totalAmount)
-
-        } catch (e: Exception) {
-            log.error("결제 실패: reservationId=$reservationId", e)
-
-            if (accountCharged) {
-                try {
-                    accountApiClient.deposit(
-                        memberId = memberId,
-                        amount = reservationInfo.totalAmount,
-                        description = "결제 실패 환불 (선점번호: $reservationId)"
-                    )
-                    log.info("보상 트랜잭션 완료: reservationId=$reservationId, 잔액 복구")
-                } catch (ce: Exception) {
-                    log.error("보상 트랜잭션(잔액 복구) 실패: reservationId=$reservationId, memberId=$memberId", ce)
-                }
-            }
-
-            try {
-                orderApiClient.cancelReservation(reservationId)
-                log.info("선점 취소 완료: reservationId=$reservationId, 재고 복구")
-            } catch (ce: Exception) {
-                log.error("선점 취소 실패 (만료 스케줄러가 처리 예정): reservationId=$reservationId", ce)
-            }
-
-            paymentRepository.save(payment.fail(e.message ?: "알 수 없는 오류"))
-            throw PaymentProcessFailedException(reservationId, e.message ?: "알 수 없는 오류")
+        } catch (e: DataIntegrityViolationException) {
+            val concurrent = paymentTransactionService.findByIdempotencyKey(idempotencyKey)
+                ?: paymentTransactionService.findByOrderId(reservationId)
+                ?: throw e
+            validateSameRequest(concurrent, reservationId, memberId, idempotencyKey)
+            concurrent
         }
     }
 
-    @Transactional
-    fun completePaymentWithOutbox(payment: Payment, reservationId: Long, memberId: Long, amount: BigDecimal): Payment {
-        val savedPayment = paymentRepository.save(payment.complete())
-        savePaymentCompletedEvent(savedPayment.id, reservationId, memberId, amount.toString())
-        return savedPayment
+    private fun findExistingPaymentForOrder(
+        reservationId: Long,
+        memberId: Long,
+        idempotencyKey: String
+    ): Payment? = paymentTransactionService.findByOrderId(reservationId)?.also {
+        validateSameRequest(it, reservationId, memberId, idempotencyKey)
     }
 
-    @Transactional(readOnly = true)
-    fun getPayment(paymentId: Long): Payment =
-        paymentRepository.findById(paymentId) ?: throw PaymentNotFoundException(paymentId)
+    private fun resumePayment(payment: Payment): Payment {
+        var current = payment
 
-    @Transactional(readOnly = true)
-    fun getPaymentByOrderId(reservationId: Long): Payment =
-        paymentRepository.findByOrderId(reservationId) ?: throw PaymentNotFoundByOrderException(reservationId)
+        if (current.status == PaymentStatus.PROCESSING) {
+            current = debitAccountOrRecover(current)
+        }
 
-    @Transactional(readOnly = true)
-    fun getMyPayments(memberId: Long): List<Payment> = paymentRepository.findByMemberId(memberId)
+        if (current.status == PaymentStatus.ACCOUNT_DEBITED) {
+            current = confirmOrderOrRecover(current)
+        }
 
-    fun refundPayment(paymentId: Long): Payment {
-        val payment = getPayment(paymentId).refund()
+        if (current.status == PaymentStatus.ORDER_CONFIRMED) {
+            current = paymentTransactionService.completePayment(current.id)
+        }
 
-        // 1. 잔액 복구
+        return current
+    }
+
+    private fun debitAccountOrRecover(payment: Payment): Payment {
+        val reservation = getReservationForRecovery(payment.orderId)
+
+        validateReservationOwnerAndAmount(reservation, payment.memberId, payment.amount)
+
+        val reservationTerminated =
+            (reservation.status != "PENDING" && reservation.status != "CONFIRMED") ||
+                (reservation.status == "PENDING" && reservation.isExpired)
+
+        if (reservationTerminated) {
+            if (!isChargeApplied(payment)) {
+
+                return failAndThrow(payment, "결제 전에 예약이 ${reservation.status} 상태로 종료되었습니다")
+            }
+
+            val debited = paymentTransactionService.markAccountDebited(payment.id)
+
+            return recoverDebitedPayment(
+                debited,
+                "계좌 차감 응답을 기다리는 동안 예약이 ${reservation.status} 상태로 종료되었습니다"
+            )
+        }
+
+        try {
+            accountApiClient.withdraw(
+                memberId = payment.memberId,
+                amount = payment.amount,
+                description = "주문 결제 (예약번호: ${payment.orderId})",
+                operationId = chargeOperationId(payment.id)
+            )
+        } catch (e: Exception) {
+            log.error("Account debit result is unknown: paymentId=${payment.id}", e)
+
+            if (!isChargeApplied(payment)) {
+                throw PaymentProcessFailedException(
+                    payment.orderId,
+                    "계좌 차감 결과를 확인하지 못했습니다. 같은 멱등성 키로 재시도해 주세요"
+                )
+            }
+        }
+
+        return paymentTransactionService.markAccountDebited(payment.id)
+    }
+
+    private fun confirmOrderOrRecover(payment: Payment): Payment {
+        val reservation = getReservationForRecovery(payment.orderId)
+
+        validateReservationOwnerAndAmount(reservation, payment.memberId, payment.amount)
+
+        if (reservation.status == "CONFIRMED") {
+
+            return paymentTransactionService.markOrderConfirmed(payment.id)
+        }
+        if (!reservation.canPay()) {
+
+            return recoverDebitedPayment(
+                payment,
+                "주문 확정 전에 예약이 ${reservation.status} 상태로 종료되었습니다"
+            )
+        }
+
+        try {
+            orderApiClient.confirmReservation(payment.orderId)
+
+            return paymentTransactionService.markOrderConfirmed(payment.id)
+        } catch (e: Exception) {
+            log.error("Order confirmation result is unknown: paymentId=${payment.id}", e)
+            val reconciled = runCatching { orderApiClient.getReservationInfo(payment.orderId) }.getOrNull()
+
+            if (reconciled?.status == "CONFIRMED") {
+
+                return paymentTransactionService.markOrderConfirmed(payment.id)
+            }
+            if (reconciled != null && !reconciled.canPay()) {
+
+                return recoverDebitedPayment(
+                    payment,
+                    "주문 확정 실패 후 예약 상태=${reconciled.status}, 만료=${reconciled.isExpired}"
+                )
+            }
+            throw PaymentProcessFailedException(
+                payment.orderId,
+                "주문 확정 결과를 확인하지 못했습니다. 같은 멱등성 키로 재시도해 주세요"
+            )
+        }
+    }
+
+    private fun recoverDebitedPayment(payment: Payment, reason: String): Payment {
+        val beforeCancellation = runCatching { orderApiClient.getReservationInfo(payment.orderId) }.getOrNull()
+            ?: throw PaymentProcessFailedException(
+                payment.orderId,
+                "예약의 최종 상태를 확인하지 못해 환급을 보류했습니다. 같은 멱등성 키로 재시도해 주세요"
+            )
+        if (beforeCancellation.status == "CONFIRMED") {
+
+            return paymentTransactionService.markOrderConfirmed(payment.id)
+        }
+
+        if (beforeCancellation.status == "PENDING") {
+            runCatching { orderApiClient.cancelReservation(payment.orderId) }
+                .onFailure { log.warn("Reservation cancellation result is unknown: orderId=${payment.orderId}", it) }
+        }
+
+        val terminal = runCatching { orderApiClient.getReservationInfo(payment.orderId) }.getOrNull()
+            ?: throw PaymentProcessFailedException(
+                payment.orderId,
+                "예약의 최종 상태를 확인하지 못해 환급을 보류했습니다. 같은 멱등성 키로 재시도해 주세요"
+            )
+        if (terminal.status == "CONFIRMED") {
+
+            return paymentTransactionService.markOrderConfirmed(payment.id)
+        }
+        val safelyTerminated = terminal.status == "CANCELLED" ||
+            terminal.status == "EXPIRED" ||
+            (terminal.status == "PENDING" && terminal.isExpired)
+
+        if (!safelyTerminated) {
+            throw PaymentProcessFailedException(
+                payment.orderId,
+                "예약 종료를 확인하지 못해 환급을 보류했습니다. 같은 멱등성 키로 재시도해 주세요"
+            )
+        }
+
         accountApiClient.deposit(
             memberId = payment.memberId,
             amount = payment.amount,
-            description = "주문 환불 (선점번호: ${payment.orderId})"
+            description = "결제 실패 환급 (예약번호: ${payment.orderId})",
+            operationId = chargeReversalOperationId(payment.id)
         )
 
-        var orderCancelled = false
+        return failAndThrow(payment, reason)
+    }
+
+    private fun failAndThrow(payment: Payment, reason: String): Nothing {
+        val failed = paymentTransactionService.failPayment(payment.id, reason)
+
+        throw PaymentProcessFailedException(failed.orderId, reason)
+    }
+
+    private fun getReservationForRecovery(reservationId: Long): ReservationInfo =
         try {
-            // 2. 확정 주문 취소 (재고 복구 X)
-            orderApiClient.cancelOrder(payment.orderId)
-            orderCancelled = true
-
-            // 3. 결제 기록 저장 + Outbox 원자적 저장
-            return self.saveRefundWithOutbox(payment)
-
+            orderApiClient.getReservationInfo(reservationId)
         } catch (e: Exception) {
-            log.error("환불 처리 실패: paymentId=$paymentId", e)
+            throw PaymentProcessFailedException(
+                reservationId,
+                "예약 상태를 확인하지 못했습니다. 같은 멱등성 키로 재시도해 주세요"
+            )
+        }
 
-            if (!orderCancelled) {
-                try {
-                    accountApiClient.withdraw(
-                        memberId = payment.memberId,
-                        amount = payment.amount,
-                        description = "환불 실패 재차감 (선점번호: ${payment.orderId})"
-                    )
-                    log.info("보상 트랜잭션 완료: paymentId=$paymentId, 잔액 재차감")
-                } catch (ce: Exception) {
-                    log.error("보상 트랜잭션(잔액 재차감) 실패: paymentId=$paymentId", ce)
-                }
-            }
-
-            throw e
+    private fun validateReservationOwnerAndAmount(
+        reservation: ReservationInfo,
+        memberId: Long,
+        expectedAmount: BigDecimal?
+    ) {
+        if (reservation.memberId != memberId) {
+            throw OrderNotPayableForPaymentException(reservation.reservationId, "요청 회원의 예약이 아닙니다")
+        }
+        if (expectedAmount != null && reservation.totalAmount.compareTo(expectedAmount) != 0) {
+            throw OrderNotPayableForPaymentException(reservation.reservationId, "예약 금액이 결제 요청 시점과 다릅니다")
         }
     }
 
-    @Transactional
-    fun saveRefundWithOutbox(payment: Payment): Payment {
-        val savedPayment = paymentRepository.save(payment)
-        savePaymentRefundedEvent(savedPayment.id, payment.orderId, payment.memberId, payment.amount.toString())
-        return savedPayment
+    private fun validateSameRequest(
+        payment: Payment,
+        reservationId: Long,
+        memberId: Long,
+        idempotencyKey: String
+    ) {
+        if (payment.orderId != reservationId || payment.memberId != memberId || payment.idempotencyKey != idempotencyKey) {
+            throw DuplicatePaymentException(idempotencyKey)
+        }
     }
 
-    private fun savePaymentCompletedEvent(paymentId: Long, reservationId: Long, memberId: Long, amount: String) {
-        val payload = objectMapper.writeValueAsString(
-            PaymentCompletedPayload(paymentId = paymentId, orderId = reservationId, memberId = memberId, amount = amount)
-        )
-        outboxRepository.save(
-            OutboxEvent.create(
-                aggregateType = OutboxAggregateType.PAYMENT,
-                aggregateId = paymentId,
-                eventType = OutboxEventType.PAYMENT_COMPLETED,
-                payload = payload
+    private fun isChargeApplied(payment: Payment): Boolean {
+        val operation = try {
+            accountApiClient.getOperation(chargeOperationId(payment.id))
+        } catch (e: Exception) {
+            throw PaymentProcessFailedException(
+                payment.orderId,
+                "계좌 차감 작업 상태를 확인하지 못했습니다. 같은 멱등성 키로 재시도해 주세요"
             )
-        )
+        }
+
+        if (!operation.found) {
+
+            return false
+        }
+
+        val matchesPayment = operation.memberId == payment.memberId &&
+            operation.transactionType == "WITHDRAWAL" &&
+            operation.amount?.compareTo(payment.amount) == 0
+
+        if (!matchesPayment) {
+            throw DuplicatePaymentException(payment.idempotencyKey)
+        }
+
+        return true
     }
 
-    private fun savePaymentRefundedEvent(paymentId: Long, reservationId: Long, memberId: Long, amount: String) {
-        val payload = objectMapper.writeValueAsString(
-            PaymentRefundedPayload(paymentId = paymentId, orderId = reservationId, memberId = memberId, amount = amount)
-        )
-        outboxRepository.save(
-            OutboxEvent.create(
-                aggregateType = OutboxAggregateType.PAYMENT,
-                aggregateId = paymentId,
-                eventType = OutboxEventType.PAYMENT_REFUNDED,
-                payload = payload
+    fun getPayment(paymentId: Long): Payment = paymentTransactionService.getPayment(paymentId)
+
+    fun getPaymentByOrderId(reservationId: Long): Payment =
+        paymentTransactionService.getPaymentByOrderId(reservationId)
+
+    fun getMyPayments(memberId: Long): List<Payment> = paymentTransactionService.getMyPayments(memberId)
+
+    fun refundPayment(paymentId: Long, memberId: Long): Payment {
+        val payment = paymentTransactionService.startRefund(paymentId, memberId)
+
+        if (payment.status == PaymentStatus.REFUNDED) {
+
+            return payment
+        }
+
+        try {
+            orderApiClient.cancelOrder(payment.orderId)
+            accountApiClient.deposit(
+                memberId = payment.memberId,
+                amount = payment.amount,
+                description = "주문 환불 (예약번호: ${payment.orderId})",
+                operationId = refundOperationId(payment.id)
             )
-        )
+        } catch (e: Exception) {
+            log.error("Refund step is incomplete and can be retried: paymentId=$paymentId", e)
+            throw PaymentProcessFailedException(
+                payment.orderId,
+                "환불 단계를 완료하지 못했습니다. 같은 환불 요청을 재시도해 주세요"
+            )
+        }
+
+        return paymentTransactionService.completeRefund(payment.id)
     }
+
+    private fun chargeOperationId(paymentId: Long) = "payment:$paymentId:charge"
+    private fun chargeReversalOperationId(paymentId: Long) = "payment:$paymentId:charge-reversal"
+    private fun refundOperationId(paymentId: Long) = "payment:$paymentId:refund"
 }

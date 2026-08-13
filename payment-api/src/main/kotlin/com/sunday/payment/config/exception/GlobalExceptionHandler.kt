@@ -7,6 +7,7 @@ import com.sunday.common.exception.InsufficientBalanceException
 import com.sunday.common.exception.LockAcquisitionException
 import com.sunday.common.exception.NotFoundException
 import com.sunday.common.exception.OrderNotPayableException
+import com.sunday.common.exception.PaymentFailedException
 import com.sunday.payment.config.auth.InvalidUserIdException
 import com.sunday.payment.config.auth.MissingUserIdException
 import io.micrometer.core.instrument.MeterRegistry
@@ -36,6 +37,7 @@ class GlobalExceptionHandler(
     fun handleMissingUserId(e: MissingUserIdException): ErrorResponse {
         log.warn("Missing user ID: {}", e.message)
         countError("missing_user_id")
+
         return ErrorResponse.of("MISSING_USER_ID", e.message, requestId())
     }
 
@@ -44,6 +46,7 @@ class GlobalExceptionHandler(
     fun handleInvalidUserId(e: InvalidUserIdException): ErrorResponse {
         log.warn("Invalid user ID: {}", e.message)
         countError("invalid_user_id")
+
         return ErrorResponse.of("INVALID_USER_ID", e.message, requestId())
     }
 
@@ -69,7 +72,7 @@ class GlobalExceptionHandler(
                 ErrorResponse.of("ALREADY_EXISTS", e.message, requestId())
             }
             is DuplicateRequestException -> {
-                log.warn("Duplicate request: {}", e.message)
+                log.debug("Duplicate request: {}", e.message)
                 countError("duplicate_request")
                 response.status = HttpStatus.CONFLICT.value()
                 ErrorResponse.of("ALREADY_EXISTS", e.message, requestId())
@@ -86,6 +89,12 @@ class GlobalExceptionHandler(
                 response.status = HttpStatus.BAD_REQUEST.value()
                 ErrorResponse.of("ORDER_NOT_PAYABLE", e.message, requestId())
             }
+            is PaymentFailedException -> {
+                log.warn("Payment processing incomplete: {}", e.message)
+                countError("payment_processing_incomplete")
+                response.status = HttpStatus.SERVICE_UNAVAILABLE.value()
+                ErrorResponse.of("PAYMENT_PROCESSING_INCOMPLETE", e.message, requestId())
+            }
             else -> {
                 log.error("Unexpected runtime error", e)
                 countError("unexpected")
@@ -99,8 +108,10 @@ class GlobalExceptionHandler(
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleValidationException(e: MethodArgumentNotValidException): ErrorResponse {
         val errors = e.bindingResult.fieldErrors.joinToString(", ") { "${it.field}: ${it.defaultMessage}" }
+
         log.warn("Validation failed: {}", errors)
         countError("validation")
+
         return ErrorResponse.of("VALIDATION_ERROR", errors, requestId())
     }
 
@@ -109,6 +120,7 @@ class GlobalExceptionHandler(
     fun handleIllegalArgument(e: IllegalArgumentException): ErrorResponse {
         log.warn("Invalid argument: {}", e.message)
         countError("invalid_argument")
+
         return ErrorResponse.of("INVALID_ARGUMENT", e.message, requestId())
     }
 
@@ -117,6 +129,7 @@ class GlobalExceptionHandler(
     fun handleIllegalState(e: IllegalStateException): ErrorResponse {
         log.warn("Invalid state: {}", e.message)
         countError("invalid_state")
+
         return ErrorResponse.of("INVALID_STATE", e.message, requestId())
     }
 
@@ -125,6 +138,7 @@ class GlobalExceptionHandler(
     fun handleException(e: Exception): ErrorResponse {
         log.error("Unexpected error", e)
         countError("unexpected")
+
         return ErrorResponse.of("INTERNAL_SERVER_ERROR", "서버 오류가 발생했습니다.", requestId())
     }
 }
