@@ -38,10 +38,10 @@ Sunday-Server
 │   └── repository
 ├── order-api           # 주문/재고 서비스 (port: 8083)
 │   ├── api
-│   ├── application
+│   ├── application         # 주문 로직, Redis Streams 단일 워커
 │   ├── domain
 │   ├── repository          # JPA + PostgreSQL SKIP LOCKED
-│   └── config/scheduler    # 만료 예약 처리
+│   └── config               # 대기열 설정, 만료 예약 처리
 ├── payment-api         # 결제 서비스 (port: 8084)
 │   ├── api
 │   ├── application         # 단계별 결제 처리 및 보상
@@ -56,10 +56,11 @@ Sunday-Server
 - **Language**: Kotlin 2.3, JDK 21
 - **Framework**: Spring Boot 4.0.1
 - **Database**: PostgreSQL 17 (서비스별 스키마/계정 분리)
+- **Queue**: Redis 7 Streams (Consumer Group, 단일 워커)
 - **Persistence & Locking**: Spring Data JPA, QueryDSL, `FOR UPDATE SKIP LOCKED`
 - **Architecture**: Multi-module, Layered Architecture (도메인별 독립 실행 API)
 - **Testing**: JUnit 5, Kotest, Testcontainers, k6
-- **Infra**: AWS EC2, RDS, Docker Compose, Prometheus, Grafana, Loki
+- **Infra**: Docker Compose
 
 ## ⭐ Features
 
@@ -79,10 +80,15 @@ Sunday-Server
 ### Order (주문/재고)
 
 - 상품 목록 및 핫딜 상품 조회
+- 주문 요청을 Redis Stream에 빠르게 접수하고 요청 ID로 처리 상태 조회
+- 단일 워커가 접수 순서대로 주문을 처리하며 실패 메시지는 ACK 전 최대 3회 재시도
+- DB 커밋과 Redis ACK 사이의 장애에도 예약 키로 중복 재고 차감 방지
 - `product_stock` 단위 재고 조회 및 선점
 - `FOR UPDATE SKIP LOCKED`를 이용한 동시 주문 처리
 - 주문 취소 및 만료 시 예약이 소유한 재고 복구
 - 비관적 락 방식과의 부하 테스트 비교
+
+주문 접수 흐름은 `Client → Order API → Redis Stream → 단일 워커 → PostgreSQL`입니다. Redis는 요청을 완충하고 순서를 전달하는 용도로만 사용하며, 판매 가능 여부와 재고의 최종 원본은 PostgreSQL입니다.
 
 ### Payment (결제)
 
@@ -93,7 +99,7 @@ Sunday-Server
 
 ## 📊 Test
 
-- Testcontainers PostgreSQL 기반 주문 동시성 및 계좌 입출금 멱등성 통합 테스트
+- Testcontainers PostgreSQL·Redis 기반 주문 대기열/동시성 및 계좌 입출금 멱등성 통합 테스트
 - MockK 기반 결제 상태 전이, 재시도 및 보상 단위 테스트
 - k6 기반 주문 Spike Traffic 및 결제 중복 요청 테스트
 - 측정 환경과 원자료는 [sunday-config 부하 테스트 문서](https://github.com/fakerdeft/sunday-config/blob/main/load-test/README.md)에 정리했습니다.

@@ -2,7 +2,7 @@ package com.sunday.order.api.dto
 
 import jakarta.validation.constraints.Positive
 
-data class ScaleResetRequest(
+data class OrderLoadTestSetupRequest(
     @field:Positive(message = "상품 ID는 양수여야 합니다")
     val productId: Long,
 

@@ -18,7 +18,8 @@ import java.time.LocalDateTime
     schema = "order_service",
     indexes = [
         Index(name = "idx_reservations_member_id", columnList = "member_id"),
-        Index(name = "idx_reservations_status_expire", columnList = "status, expire_at")
+        Index(name = "idx_reservations_status_expire", columnList = "status, expire_at"),
+        Index(name = "uq_reservations_reservation_key", columnList = "reservation_key", unique = true)
     ]
 )
 class OrderReservationJpaEntity(

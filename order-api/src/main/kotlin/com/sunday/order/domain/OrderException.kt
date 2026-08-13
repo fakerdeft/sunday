@@ -39,6 +39,16 @@ class DuplicatePendingOrderException(memberId: Long, productId: Long) :
     OrderException("회원 $memberId 님은 상품 $productId 에 대해 이미 대기 중인 선점이 있습니다."),
     DuplicateRequestException
 
+class OrderQueueRequestNotFoundException(requestId: String) :
+    OrderException("대기열 주문 요청을 찾을 수 없습니다: $requestId"), NotFoundException
+
+class OrderQueueIdempotencyConflictException :
+    OrderException("같은 멱등성 키가 다른 주문 요청에 이미 사용되었습니다."),
+    DuplicateRequestException
+
+class InvalidIdempotencyKeyException(maxLength: Int) :
+    IllegalArgumentException("멱등성 키는 비어 있지 않아야 하며 $maxLength 자 이하여야 합니다.")
+
 class StockReservationMismatchException(reservationId: Long, expected: Int, actual: Int) :
     OrderException("예약 $reservationId 의 재고 귀속 수량이 일치하지 않습니다. 기대: $expected, 실제: $actual")
 

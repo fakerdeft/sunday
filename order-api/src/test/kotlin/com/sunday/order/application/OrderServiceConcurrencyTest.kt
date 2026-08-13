@@ -104,7 +104,7 @@ class OrderServiceConcurrencyTest {
         productStockRepository.saveAll(stocks)
 
         val (success, fail) = runConcurrent { memberId ->
-            orderService.createReservation(memberId, productId, 1)
+            orderService.createReservationWithSkipLocked(memberId, productId, 1)
         }
 
         val remaining = productStockRepository.countAvailable(productId)
@@ -118,7 +118,7 @@ class OrderServiceConcurrencyTest {
     @Test
     fun `confirmed reservation is not expired and its stock stays claimed`() {
         saveUnitStocks(1)
-        val reservation = orderService.createReservation(1L, productId, 1)
+        val reservation = orderService.createReservationWithSkipLocked(1L, productId, 1)
 
         val order = orderService.confirmReservation(reservation.id)
         val confirmed = reservationRepository.findById(reservation.id)!!
@@ -138,7 +138,7 @@ class OrderServiceConcurrencyTest {
     @Test
     fun `order confirmation and cancellation retries are idempotent`() {
         saveUnitStocks(1)
-        val reservation = orderService.createReservation(2L, productId, 1)
+        val reservation = orderService.createReservationWithSkipLocked(2L, productId, 1)
 
         val firstConfirmation = orderService.confirmReservation(reservation.id)
         val confirmationRetry = orderService.confirmReservation(reservation.id)
@@ -173,7 +173,7 @@ class OrderServiceConcurrencyTest {
                 )
             )
         )
-        val reservation = orderService.createReservation(memberId, productId, 2)
+        val reservation = orderService.createReservationWithSkipLocked(memberId, productId, 2)
 
         val cancelled = orderService.cancelReservation(reservation.id)
         val retried = orderService.cancelReservation(reservation.id)
@@ -188,7 +188,7 @@ class OrderServiceConcurrencyTest {
     @Test
     fun `bulk stock release rolls back when reservation quantity does not match`() {
         saveUnitStocks(1)
-        val reservation = orderService.createReservation(8L, productId, 1)
+        val reservation = orderService.createReservationWithSkipLocked(8L, productId, 1)
         reservationRepository.saveAndFlush(reservation.copy(quantity = 2))
 
         assertThatThrownBy { orderService.cancelReservation(reservation.id) }
@@ -203,7 +203,7 @@ class OrderServiceConcurrencyTest {
     @Test
     fun `confirm and cancel race has exactly one consistent winner`() {
         saveUnitStocks(1)
-        val reservation = orderService.createReservation(11L, productId, 1)
+        val reservation = orderService.createReservationWithSkipLocked(11L, productId, 1)
         val start = CountDownLatch(1)
         val completed = CopyOnWriteArrayList<String>()
 
@@ -251,7 +251,7 @@ class OrderServiceConcurrencyTest {
     @Test
     fun `expired pending reservation restores its exact stock`() {
         saveUnitStocks(2)
-        val reservation = orderService.createReservation(21L, productId, 2)
+        val reservation = orderService.createReservationWithSkipLocked(21L, productId, 2)
 
         reservationRepository.saveAndFlush(reservation.copy(expireAt = LocalDateTime.now().minusSeconds(1)))
 
@@ -267,7 +267,7 @@ class OrderServiceConcurrencyTest {
     fun `product query reports unit stock availability instead of benchmark stock column`() {
         saveUnitStocks(2)
 
-        val reservation = orderService.createReservation(22L, productId, 1)
+        val reservation = orderService.createReservationWithSkipLocked(22L, productId, 1)
 
         assertThat(orderService.getProduct(productId).availableStock).isEqualTo(1L)
         assertThat(orderService.getProducts().single { it.product.id == productId }.availableStock).isEqualTo(1L)
@@ -284,7 +284,7 @@ class OrderServiceConcurrencyTest {
             Thread {
                 try {
                     start.await()
-                    orderService.createReservation(31L, productId, 1)
+                    orderService.createReservationWithSkipLocked(31L, productId, 1)
                     success.incrementAndGet()
                 } catch (_: Exception) {
                 }

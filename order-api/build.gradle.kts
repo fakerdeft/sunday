@@ -6,6 +6,7 @@ dependencies {
     implementation(project(":common"))
 
     implementation("com.github.f4b6a3:tsid-creator:5.2.6")
+    implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
     implementation("io.github.openfeign.querydsl:querydsl-jpa:$queryDslVersion")
     implementation("io.github.openfeign.querydsl:querydsl-core:$queryDslVersion")

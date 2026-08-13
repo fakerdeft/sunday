@@ -18,6 +18,9 @@ class OrderReservationRepository(
     fun findById(id: Long): OrderReservation? =
         jpaRepository.findByIdOrNull(id)?.toDomain()
 
+    fun findByReservationKey(reservationKey: String): OrderReservation? =
+        jpaRepository.findByReservationKey(reservationKey)?.toDomain()
+
     fun findByIdForUpdate(id: Long): OrderReservation? =
         queryDsl.selectFrom(r)
             .where(r.id.eq(id))
