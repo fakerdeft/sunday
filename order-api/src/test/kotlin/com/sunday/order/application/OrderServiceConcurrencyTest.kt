@@ -5,18 +5,20 @@ import com.sunday.order.domain.ProductStock
 import com.sunday.order.domain.OrderStatus
 import com.sunday.order.domain.ReservationStatus
 import com.sunday.order.domain.StockStatus
+import com.sunday.order.domain.StockReservationMismatchException
 import com.sunday.order.repository.OrderRepository
 import com.sunday.order.repository.OrderReservationRepository
 import com.sunday.order.repository.ProductRepository
 import com.sunday.order.repository.ProductStockRepository
 import org.assertj.core.api.Assertions.assertThat
+import org.assertj.core.api.Assertions.assertThatThrownBy
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.context.SpringBootTest
-import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
+import org.springframework.test.context.jdbc.Sql
 import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.junit.jupiter.Container
 import org.testcontainers.junit.jupiter.Testcontainers
@@ -28,6 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger
 
 @SpringBootTest
 @Testcontainers
+@Sql(scripts = ["classpath:db/order-indexes.sql"])
 class OrderServiceConcurrencyTest {
 
     companion object {
@@ -55,7 +58,6 @@ class OrderServiceConcurrencyTest {
     @Autowired private lateinit var productRepository: ProductRepository
     @Autowired private lateinit var reservationRepository: OrderReservationRepository
     @Autowired private lateinit var productStockRepository: ProductStockRepository
-    @Autowired private lateinit var jdbcTemplate: JdbcTemplate
 
     private val initialStock = 100
     private val threadCount = 500
@@ -63,13 +65,6 @@ class OrderServiceConcurrencyTest {
 
     @BeforeEach
     fun setUp() {
-        jdbcTemplate.execute(
-            """
-            CREATE UNIQUE INDEX IF NOT EXISTS uq_reservations_pending_member_product
-            ON order_service.order_reservations(member_id, product_id)
-            WHERE status = 'PENDING'
-            """.trimIndent()
-        )
         orderRepository.deleteAll()
         reservationRepository.deleteAll()
         val product = productRepository.save(
@@ -188,6 +183,21 @@ class OrderServiceConcurrencyTest {
         assertThat(productStockRepository.countClaimedByReservationId(reservation.id)).isZero()
         assertThat(productStockRepository.countClaimedByReservationId(unrelatedReservationId)).isEqualTo(1L)
         assertThat(productStockRepository.countAvailable(productId)).isEqualTo(2L)
+    }
+
+    @Test
+    fun `bulk stock release rolls back when reservation quantity does not match`() {
+        saveUnitStocks(1)
+        val reservation = orderService.createReservation(8L, productId, 1)
+        reservationRepository.saveAndFlush(reservation.copy(quantity = 2))
+
+        assertThatThrownBy { orderService.cancelReservation(reservation.id) }
+            .isInstanceOf(StockReservationMismatchException::class.java)
+
+        assertThat(reservationRepository.findById(reservation.id)!!.status)
+            .isEqualTo(ReservationStatus.PENDING)
+        assertThat(productStockRepository.countClaimedByReservationId(reservation.id)).isEqualTo(1L)
+        assertThat(productStockRepository.countAvailable(productId)).isZero()
     }
 
     @Test

@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository
 class AccountTransactionRepository(
     private val jpaRepository: AccountTransactionJpaRepository,
     private val accountJpaRepository: AccountJpaRepository,
-    private val queryFactory: JPAQueryFactory
+    private val queryDsl: JPAQueryFactory
 ) {
     fun save(domain: AccountTransaction): AccountTransaction {
         val accountRef = accountJpaRepository.getReferenceById(domain.accountId)
@@ -29,7 +29,7 @@ class AccountTransactionRepository(
             .map { it.toDomain() }
 
     fun findByAccountIdWithAccount(accountId: Long): List<AccountTransaction> =
-        queryFactory.selectFrom(accountTransactionJpaEntity)
+        queryDsl.selectFrom(accountTransactionJpaEntity)
             .join(accountTransactionJpaEntity.account).fetchJoin()
             .where(accountTransactionJpaEntity.account.id.eq(accountId))
             .orderBy(accountTransactionJpaEntity.createdAt.desc())

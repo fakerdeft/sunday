@@ -1,11 +1,17 @@
 package com.sunday.account.repository
 
+import com.querydsl.jpa.impl.JPAQueryFactory
 import com.sunday.account.domain.Account
+import jakarta.persistence.LockModeType
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 @Repository
-class AccountRepository(private val jpaRepository: AccountJpaRepository) {
+class AccountRepository(
+    private val jpaRepository: AccountJpaRepository,
+    private val queryDsl: JPAQueryFactory
+) {
+    private val account = QAccountJpaEntity.accountJpaEntity
 
     fun findById(id: Long): Account? =
         jpaRepository.findByIdOrNull(id)?.toDomain()
@@ -14,7 +20,11 @@ class AccountRepository(private val jpaRepository: AccountJpaRepository) {
         jpaRepository.findByMemberId(memberId)?.toDomain()
 
     fun findByMemberIdForUpdate(memberId: Long): Account? =
-        jpaRepository.findByMemberIdForUpdate(memberId)?.toDomain()
+        queryDsl.selectFrom(account)
+            .where(account.memberId.eq(memberId))
+            .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+            .fetchOne()
+            ?.toDomain()
 
     fun findByUserId(userId: String): Account? =
         jpaRepository.findByUserId(userId)?.toDomain()

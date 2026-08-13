@@ -1,17 +1,27 @@
 package com.sunday.payment.repository
 
+import com.querydsl.jpa.impl.JPAQueryFactory
 import com.sunday.payment.domain.Payment
+import jakarta.persistence.LockModeType
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 @Repository
-class PaymentRepository(private val jpaRepository: PaymentJpaRepository) {
+class PaymentRepository(
+    private val jpaRepository: PaymentJpaRepository,
+    private val queryDsl: JPAQueryFactory
+) {
+    private val payment = QPaymentJpaEntity.paymentJpaEntity
 
     fun findById(id: Long): Payment? =
         jpaRepository.findByIdOrNull(id)?.toDomain()
 
     fun findByIdForUpdate(id: Long): Payment? =
-        jpaRepository.findByIdForUpdate(id)?.toDomain()
+        queryDsl.selectFrom(payment)
+            .where(payment.id.eq(id))
+            .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+            .fetchOne()
+            ?.toDomain()
 
     fun findByOrderId(orderId: Long): Payment? =
         jpaRepository.findByOrderId(orderId)?.toDomain()

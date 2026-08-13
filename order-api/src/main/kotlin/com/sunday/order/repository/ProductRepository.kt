@@ -2,13 +2,14 @@ package com.sunday.order.repository
 
 import com.querydsl.jpa.impl.JPAQueryFactory
 import com.sunday.order.domain.Product
+import jakarta.persistence.LockModeType
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Repository
 
 @Repository
 class ProductRepository(
     private val jpaRepository: ProductJpaRepository,
-    private val queryFactory: JPAQueryFactory
+    private val queryDsl: JPAQueryFactory
 ) {
     private val p = QProductJpaEntity.productJpaEntity
 
@@ -16,13 +17,17 @@ class ProductRepository(
         jpaRepository.findByIdOrNull(id)?.toDomain()
 
     fun findByIdWithPessimisticLock(id: Long): Product? =
-        jpaRepository.findByIdWithPessimisticLock(id).orElse(null)?.toDomain()
+        queryDsl.selectFrom(p)
+            .where(p.id.eq(id))
+            .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+            .fetchOne()
+            ?.toDomain()
 
     fun findAll(): List<Product> =
         jpaRepository.findAll().map { it.toDomain() }
 
     fun findHotDeals(): List<Product> =
-        queryFactory.selectFrom(p).where(p.isHotDeal.isTrue).fetch().map { it.toDomain() }
+        jpaRepository.findByIsHotDealTrue().map { it.toDomain() }
 
     fun save(domain: Product): Product =
         jpaRepository.save(ProductJpaEntity.from(domain)).toDomain()
