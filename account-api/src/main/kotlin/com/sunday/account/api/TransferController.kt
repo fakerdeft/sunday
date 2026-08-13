@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController
 class TransferController(
     private val transferService: TransferService
 ) {
-
     @PostMapping
     @ResponseStatus(HttpStatus.OK)
     fun transfer(
@@ -37,12 +36,6 @@ class TransferController(
         return TransferResponse.from(transfer)
     }
 
-    @GetMapping("/{transferId}")
-    @ResponseStatus(HttpStatus.OK)
-    fun getTransfer(@PathVariable transferId: Long): TransferResponse {
-        return TransferResponse.from(transferService.getTransfer(transferId))
-    }
-
     @GetMapping("/sent")
     @ResponseStatus(HttpStatus.OK)
     fun getSentTransfers(@UserId memberId: Long): List<TransferResponse> {
@@ -53,6 +46,12 @@ class TransferController(
     @ResponseStatus(HttpStatus.OK)
     fun getReceivedTransfers(@UserId memberId: Long): List<TransferResponse> {
         return transferService.getReceivedTransfers(memberId).map { TransferResponse.from(it) }
+    }
+
+    @GetMapping("/{transferId}")
+    @ResponseStatus(HttpStatus.OK)
+    fun getTransfer(@PathVariable transferId: Long): TransferResponse {
+        return TransferResponse.from(transferService.getTransfer(transferId))
     }
 
     @PostMapping("/{transferId}/reverse")

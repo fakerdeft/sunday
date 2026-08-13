@@ -19,7 +19,7 @@ data class Product(
         if (name.isBlank()) throw InvalidProductNameException()
         if (price <= BigDecimal.ZERO) throw InvalidProductPriceException(price)
         if (stock < 0) throw InvalidProductStockException(stock)
-        if (totalQuantity < stock) throw IllegalArgumentException("Total quantity cannot be less than current stock")
+        if (totalQuantity < stock) throw IllegalArgumentException("전체 수량은 현재 재고보다 작을 수 없습니다.")
     }
 
     fun isHotDealActive(): Boolean {

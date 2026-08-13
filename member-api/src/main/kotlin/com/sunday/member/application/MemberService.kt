@@ -10,11 +10,11 @@ import org.springframework.transaction.annotation.Transactional
 class MemberService(
     private val memberRepository: MemberRepository
 ) {
+    @Transactional
+    fun createMember(name: String): Member {
+        val member = Member.create(name)
 
-    @Transactional(readOnly = true)
-    fun getMemberById(id: Long): Member {
-        return memberRepository.findById(id)
-            ?: throw MemberNotFoundException(id)
+        return memberRepository.save(member)
     }
 
     @Transactional(readOnly = true)
@@ -22,10 +22,9 @@ class MemberService(
         return memberRepository.findAll()
     }
 
-    @Transactional
-    fun createMember(name: String): Member {
-        val member = Member.create(name)
-
-        return memberRepository.save(member)
+    @Transactional(readOnly = true)
+    fun getMemberById(id: Long): Member {
+        return memberRepository.findById(id)
+            ?: throw MemberNotFoundException(id)
     }
 }

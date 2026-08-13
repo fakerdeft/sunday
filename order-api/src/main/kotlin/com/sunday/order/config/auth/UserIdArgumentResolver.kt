@@ -37,7 +37,7 @@ class UserIdArgumentResolver : HandlerMethodArgumentResolver {
 }
 
 class MissingUserIdException :
-    IllegalArgumentException("Missing required header: ${UserIdArgumentResolver.USER_ID_HEADER}")
+    IllegalArgumentException("필수 헤더가 누락되었습니다: ${UserIdArgumentResolver.USER_ID_HEADER}")
 
 class InvalidUserIdException(value: String, cause: Throwable) :
-    IllegalArgumentException("Invalid ${UserIdArgumentResolver.USER_ID_HEADER} header value: $value", cause)
+    IllegalArgumentException("${UserIdArgumentResolver.USER_ID_HEADER} 헤더 값이 올바르지 않습니다: $value", cause)

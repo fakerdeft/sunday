@@ -14,9 +14,9 @@ class OrderExpirationScheduler(private val orderService: OrderService) {
         try {
             val count = orderService.expireReservations()
 
-            if (count > 0) log.info("Expired $count reservations and restored stock")
+            if (count > 0) log.info("만료 예약 ${count}건의 재고를 복구했습니다")
         } catch (e: Exception) {
-            log.error("Failed to expire reservations", e)
+            log.error("만료 예약 처리에 실패했습니다", e)
         }
     }
 }

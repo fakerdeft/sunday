@@ -24,17 +24,16 @@ import org.springframework.web.bind.annotation.RestController
 class AccountController(
     private val accountService: AccountService
 ) {
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createAccount(@Valid @RequestBody request: CreateAccountRequest): AccountResponse {
+        return AccountResponse.from(accountService.createAccount(request.memberId, request.userId))
+    }
 
     @GetMapping("/me")
     @ResponseStatus(HttpStatus.OK)
     fun getMyAccount(@UserId memberId: Long): AccountResponse {
         return AccountResponse.from(accountService.getAccountByMemberId(memberId))
-    }
-
-    @GetMapping("/operations/{operationId}")
-    @ResponseStatus(HttpStatus.OK)
-    fun getOperation(@PathVariable operationId: String): AccountOperationResponse {
-        return AccountOperationResponse.from(accountService.findOperation(operationId))
     }
 
     @PostMapping("/me/deposit")
@@ -79,9 +78,9 @@ class AccountController(
             .map { TransactionResponse.from(it) }
     }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    fun createAccount(@Valid @RequestBody request: CreateAccountRequest): AccountResponse {
-        return AccountResponse.from(accountService.createAccount(request.memberId, request.userId))
+    @GetMapping("/operations/{operationId}")
+    @ResponseStatus(HttpStatus.OK)
+    fun getOperation(@PathVariable operationId: String): AccountOperationResponse {
+        return AccountOperationResponse.from(accountService.findOperation(operationId))
     }
 }

@@ -20,6 +20,13 @@ class AccountService(
     private val accountRepository: AccountRepository,
     private val transactionRepository: AccountTransactionRepository
 ) {
+    @Transactional
+    fun createAccount(memberId: Long, userId: String): Account {
+        if (accountRepository.existsByMemberId(memberId)) throw AccountAlreadyExistsException(memberId)
+        val account = Account.create(memberId, userId)
+
+        return accountRepository.save(account)
+    }
 
     @Transactional(readOnly = true)
     fun getAccountById(id: Long): Account {
@@ -112,21 +119,6 @@ class AccountService(
     }
 
     @Transactional(readOnly = true)
-    fun findOperation(operationId: String): AccountOperationResult? {
-
-        val transaction = transactionRepository.findByOperationId(operationId) ?: return null
-        val account = accountRepository.findById(transaction.accountId)
-            ?: throw AccountNotFoundException(transaction.accountId)
-
-        return AccountOperationResult(
-            operationId = operationId,
-            memberId = account.memberId,
-            transactionType = transaction.transactionType,
-            amount = transaction.amount
-        )
-    }
-
-    @Transactional(readOnly = true)
     fun getTransactionHistory(accountId: Long): List<AccountTransaction> {
         getAccountById(accountId)
 
@@ -148,12 +140,18 @@ class AccountService(
         return transactionRepository.findByAccountId(account.id, page, size)
     }
 
-    @Transactional
-    fun createAccount(memberId: Long, userId: String): Account {
-        if (accountRepository.existsByMemberId(memberId)) throw AccountAlreadyExistsException(memberId)
-        val account = Account.create(memberId, userId)
+    @Transactional(readOnly = true)
+    fun findOperation(operationId: String): AccountOperationResult? {
+        val transaction = transactionRepository.findByOperationId(operationId) ?: return null
+        val account = accountRepository.findById(transaction.accountId)
+            ?: throw AccountNotFoundException(transaction.accountId)
 
-        return accountRepository.save(account)
+        return AccountOperationResult(
+            operationId = operationId,
+            memberId = account.memberId,
+            transactionType = transaction.transactionType,
+            amount = transaction.amount
+        )
     }
 
     private fun <T> executeWithOptimisticLock(accountId: Long, action: () -> T): T {
@@ -172,7 +170,7 @@ class AccountService(
         type: TransactionType
     ): Account {
         require(operationId.isNotBlank() && operationId.length <= 150) {
-            "operationId must contain 1 to 150 characters"
+            "operationId는 1자 이상 150자 이하여야 합니다"
         }
 
         val account = accountRepository.findByMemberIdForUpdate(memberId)
@@ -192,7 +190,7 @@ class AccountService(
         val (updatedAccount, transaction) = when (type) {
             TransactionType.DEPOSIT -> account.deposit(amount, description, operationId)
             TransactionType.WITHDRAWAL -> account.withdraw(amount, description, operationId)
-            else -> error("Unsupported idempotent account operation: $type")
+            else -> error("지원하지 않는 멱등 계좌 작업입니다: $type")
         }
 
         transactionRepository.save(transaction)

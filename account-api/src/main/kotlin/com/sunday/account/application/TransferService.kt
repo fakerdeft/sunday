@@ -59,11 +59,6 @@ class TransferService(
     }
 
     @Transactional(readOnly = true)
-    fun getTransfer(transferId: Long): Transfer {
-        return transferRepository.findById(transferId) ?: throw TransferNotFoundException(transferId)
-    }
-
-    @Transactional(readOnly = true)
     fun getSentTransfers(memberId: Long): List<Transfer> {
         return transferRepository.findBySenderMemberId(memberId)
     }
@@ -71,6 +66,11 @@ class TransferService(
     @Transactional(readOnly = true)
     fun getReceivedTransfers(memberId: Long): List<Transfer> {
         return transferRepository.findByReceiverMemberId(memberId)
+    }
+
+    @Transactional(readOnly = true)
+    fun getTransfer(transferId: Long): Transfer {
+        return transferRepository.findById(transferId) ?: throw TransferNotFoundException(transferId)
     }
 
     @Transactional

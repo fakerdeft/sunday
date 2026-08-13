@@ -25,7 +25,7 @@ class ConcurrentModificationException(accountId: Long) :
     AccountException("계좌 $accountId 가 다른 트랜잭션에 의해 수정되었습니다. 다시 시도해주세요."), ConcurrencyException
 
 class InvalidAccountUserIdException :
-    AccountException("User ID는 공백이 불가능합니다.")
+    AccountException("사용자 ID는 공백일 수 없습니다.")
 
 class InvalidAccountBalanceException(balance: BigDecimal) :
     AccountException("잔액은 음수가 될 수 없습니다. 입력값: $balance")

@@ -19,11 +19,10 @@ import org.springframework.web.bind.annotation.RestController
 class MemberController(
     private val memberService: MemberService
 ) {
-
-    @GetMapping("/{id}")
-    @ResponseStatus(HttpStatus.OK)
-    fun getMember(@PathVariable id: Long): MemberResponse {
-        return MemberResponse.from(memberService.getMemberById(id))
+    @PostMapping
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createMember(@Valid @RequestBody request: CreateMemberRequest): MemberResponse {
+        return MemberResponse.from(memberService.createMember(request.name))
     }
 
     @GetMapping
@@ -32,15 +31,15 @@ class MemberController(
         return memberService.getAllMembers().map { MemberResponse.from(it) }
     }
 
-    @PostMapping
-    @ResponseStatus(HttpStatus.CREATED)
-    fun createMember(@Valid @RequestBody request: CreateMemberRequest): MemberResponse {
-        return MemberResponse.from(memberService.createMember(request.name))
-    }
-
     @GetMapping("/me")
     @ResponseStatus(HttpStatus.OK)
     fun getMyInfo(@UserId memberId: Long): MemberResponse {
         return MemberResponse.from(memberService.getMemberById(memberId))
+    }
+
+    @GetMapping("/{id}")
+    @ResponseStatus(HttpStatus.OK)
+    fun getMember(@PathVariable id: Long): MemberResponse {
+        return MemberResponse.from(memberService.getMemberById(id))
     }
 }

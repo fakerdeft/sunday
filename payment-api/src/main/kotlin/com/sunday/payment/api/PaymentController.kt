@@ -19,7 +19,6 @@ import org.springframework.web.bind.annotation.RestController
 class PaymentController(
     private val paymentService: PaymentService
 ) {
-
     @PostMapping
     @ResponseStatus(HttpStatus.OK)
     fun processPayment(
@@ -35,10 +34,10 @@ class PaymentController(
         )
     }
 
-    @GetMapping("/{paymentId}")
+    @GetMapping("/me")
     @ResponseStatus(HttpStatus.OK)
-    fun getPayment(@PathVariable paymentId: Long): PaymentResponse {
-        return PaymentResponse.from(paymentService.getPayment(paymentId))
+    fun getMyPayments(@UserId memberId: Long): List<PaymentResponse> {
+        return paymentService.getMyPayments(memberId).map { PaymentResponse.from(it) }
     }
 
     @GetMapping("/order/{orderId}")
@@ -47,10 +46,10 @@ class PaymentController(
         return PaymentResponse.from(paymentService.getPaymentByOrderId(orderId))
     }
 
-    @GetMapping("/me")
+    @GetMapping("/{paymentId}")
     @ResponseStatus(HttpStatus.OK)
-    fun getMyPayments(@UserId memberId: Long): List<PaymentResponse> {
-        return paymentService.getMyPayments(memberId).map { PaymentResponse.from(it) }
+    fun getPayment(@PathVariable paymentId: Long): PaymentResponse {
+        return PaymentResponse.from(paymentService.getPayment(paymentId))
     }
 
     @PostMapping("/{paymentId}/refund")

@@ -39,6 +39,40 @@ class PaymentService(
         return processByStatus(payment)
     }
 
+    fun getMyPayments(memberId: Long): List<Payment> = paymentTransactionService.getMyPayments(memberId)
+
+    fun getPaymentByOrderId(reservationId: Long): Payment =
+        paymentTransactionService.getPaymentByOrderId(reservationId)
+
+    fun getPayment(paymentId: Long): Payment = paymentTransactionService.getPayment(paymentId)
+
+    fun refundPayment(paymentId: Long, memberId: Long): Payment {
+        val payment = paymentTransactionService.startRefund(paymentId, memberId)
+
+        if (payment.status == PaymentStatus.REFUNDED) {
+
+            return payment
+        }
+
+        try {
+            orderApiClient.cancelOrder(payment.orderId)
+            accountApiClient.deposit(
+                memberId = payment.memberId,
+                amount = payment.amount,
+                description = "주문 환불 (예약번호: ${payment.orderId})",
+                operationId = refundOperationId(payment.id)
+            )
+        } catch (e: Exception) {
+            log.error("환불 단계가 완료되지 않아 재시도가 필요합니다: paymentId=$paymentId", e)
+            throw PaymentProcessFailedException(
+                payment.orderId,
+                "환불 단계를 완료하지 못했습니다. 같은 환불 요청을 재시도해 주세요"
+            )
+        }
+
+        return paymentTransactionService.completeRefund(payment.id)
+    }
+
     private fun processByStatus(payment: Payment): Payment {
         return when (payment.status) {
             PaymentStatus.COMPLETED,
@@ -154,7 +188,7 @@ class PaymentService(
                 operationId = chargeOperationId(payment.id)
             )
         } catch (e: Exception) {
-            log.error("Account debit result is unknown: paymentId=${payment.id}", e)
+            log.error("계좌 차감 결과를 확인할 수 없습니다: paymentId=${payment.id}", e)
 
             if (!isChargeApplied(payment)) {
                 throw PaymentProcessFailedException(
@@ -189,7 +223,7 @@ class PaymentService(
 
             return paymentTransactionService.markOrderConfirmed(payment.id)
         } catch (e: Exception) {
-            log.error("Order confirmation result is unknown: paymentId=${payment.id}", e)
+            log.error("주문 확정 결과를 확인할 수 없습니다: paymentId=${payment.id}", e)
             val reconciled = runCatching { orderApiClient.getReservationInfo(payment.orderId) }.getOrNull()
 
             if (reconciled?.status == "CONFIRMED") {
@@ -223,7 +257,7 @@ class PaymentService(
 
         if (beforeCancellation.status == "PENDING") {
             runCatching { orderApiClient.cancelReservation(payment.orderId) }
-                .onFailure { log.warn("Reservation cancellation result is unknown: orderId=${payment.orderId}", it) }
+                .onFailure { log.warn("예약 취소 결과를 확인할 수 없습니다: orderId=${payment.orderId}", it) }
         }
 
         val terminal = runCatching { orderApiClient.getReservationInfo(payment.orderId) }.getOrNull()
@@ -320,40 +354,6 @@ class PaymentService(
         }
 
         return true
-    }
-
-    fun getPayment(paymentId: Long): Payment = paymentTransactionService.getPayment(paymentId)
-
-    fun getPaymentByOrderId(reservationId: Long): Payment =
-        paymentTransactionService.getPaymentByOrderId(reservationId)
-
-    fun getMyPayments(memberId: Long): List<Payment> = paymentTransactionService.getMyPayments(memberId)
-
-    fun refundPayment(paymentId: Long, memberId: Long): Payment {
-        val payment = paymentTransactionService.startRefund(paymentId, memberId)
-
-        if (payment.status == PaymentStatus.REFUNDED) {
-
-            return payment
-        }
-
-        try {
-            orderApiClient.cancelOrder(payment.orderId)
-            accountApiClient.deposit(
-                memberId = payment.memberId,
-                amount = payment.amount,
-                description = "주문 환불 (예약번호: ${payment.orderId})",
-                operationId = refundOperationId(payment.id)
-            )
-        } catch (e: Exception) {
-            log.error("Refund step is incomplete and can be retried: paymentId=$paymentId", e)
-            throw PaymentProcessFailedException(
-                payment.orderId,
-                "환불 단계를 완료하지 못했습니다. 같은 환불 요청을 재시도해 주세요"
-            )
-        }
-
-        return paymentTransactionService.completeRefund(payment.id)
     }
 
     private fun chargeOperationId(paymentId: Long) = "payment:$paymentId:charge"

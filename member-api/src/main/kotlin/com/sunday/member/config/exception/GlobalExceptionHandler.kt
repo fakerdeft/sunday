@@ -5,7 +5,6 @@ import com.sunday.common.exception.ErrorResponse
 import com.sunday.common.exception.NotFoundException
 import com.sunday.member.config.auth.InvalidUserIdException
 import com.sunday.member.config.auth.MissingUserIdException
-import io.micrometer.core.instrument.MeterRegistry
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
@@ -16,23 +15,14 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
 @RestControllerAdvice
-class GlobalExceptionHandler(
-    private val meterRegistry: MeterRegistry
-) {
+class GlobalExceptionHandler {
 
     private val log = LoggerFactory.getLogger(javaClass)
-
-    private fun requestId(): String? = MDC.get("requestId")
-
-    private fun countError(type: String) {
-        meterRegistry.counter("domain.error", "type", type).increment()
-    }
 
     @ExceptionHandler(MissingUserIdException::class)
     @ResponseStatus(HttpStatus.UNAUTHORIZED)
     fun handleMissingUserId(e: MissingUserIdException): ErrorResponse {
-        log.warn("Missing user ID: {}", e.message)
-        countError("missing_user_id")
+        log.warn("회원 ID가 누락되었습니다: {}", e.message)
 
         return ErrorResponse.of("MISSING_USER_ID", e.message, requestId())
     }
@@ -40,8 +30,7 @@ class GlobalExceptionHandler(
     @ExceptionHandler(InvalidUserIdException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleInvalidUserId(e: InvalidUserIdException): ErrorResponse {
-        log.warn("Invalid user ID: {}", e.message)
-        countError("invalid_user_id")
+        log.warn("유효하지 않은 회원 ID입니다: {}", e.message)
 
         return ErrorResponse.of("INVALID_USER_ID", e.message, requestId())
     }
@@ -50,22 +39,19 @@ class GlobalExceptionHandler(
     fun handleRuntimeException(e: RuntimeException, response: HttpServletResponse): ErrorResponse {
         return when (e) {
             is NotFoundException -> {
-                log.warn("Resource not found: {}", e.message)
-                countError("not_found")
+                log.warn("리소스를 찾을 수 없습니다: {}", e.message)
                 response.status = HttpStatus.NOT_FOUND.value()
                 ErrorResponse.of("NOT_FOUND", e.message, requestId())
             }
 
             is AlreadyExistsException -> {
-                log.warn("Resource already exists: {}", e.message)
-                countError("already_exists")
+                log.warn("이미 존재하는 리소스입니다: {}", e.message)
                 response.status = HttpStatus.CONFLICT.value()
                 ErrorResponse.of("ALREADY_EXISTS", e.message, requestId())
             }
 
             else -> {
-                log.error("Unexpected runtime error", e)
-                countError("unexpected")
+                log.error("예상하지 못한 런타임 오류가 발생했습니다", e)
                 response.status = HttpStatus.INTERNAL_SERVER_ERROR.value()
                 ErrorResponse.of("INTERNAL_SERVER_ERROR", "서버 오류가 발생했습니다.", requestId())
             }
@@ -77,8 +63,7 @@ class GlobalExceptionHandler(
     fun handleValidationException(e: MethodArgumentNotValidException): ErrorResponse {
         val errors = e.bindingResult.fieldErrors.joinToString(", ") { "${it.field}: ${it.defaultMessage}" }
 
-        log.warn("Validation failed: {}", errors)
-        countError("validation")
+        log.warn("요청값 검증에 실패했습니다: {}", errors)
 
         return ErrorResponse.of("VALIDATION_ERROR", errors, requestId())
     }
@@ -86,8 +71,7 @@ class GlobalExceptionHandler(
     @ExceptionHandler(IllegalArgumentException::class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     fun handleIllegalArgument(e: IllegalArgumentException): ErrorResponse {
-        log.warn("Invalid argument: {}", e.message)
-        countError("invalid_argument")
+        log.warn("유효하지 않은 인자입니다: {}", e.message)
 
         return ErrorResponse.of("INVALID_ARGUMENT", e.message, requestId())
     }
@@ -95,9 +79,10 @@ class GlobalExceptionHandler(
     @ExceptionHandler(Exception::class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     fun handleException(e: Exception): ErrorResponse {
-        log.error("Unexpected error", e)
-        countError("unexpected")
+        log.error("예상하지 못한 오류가 발생했습니다", e)
 
         return ErrorResponse.of("INTERNAL_SERVER_ERROR", "서버 오류가 발생했습니다.", requestId())
     }
+
+    private fun requestId(): String? = MDC.get("requestId")
 }
