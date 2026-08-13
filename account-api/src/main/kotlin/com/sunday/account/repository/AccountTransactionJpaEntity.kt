@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.Index
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
@@ -17,7 +18,11 @@ import java.math.BigDecimal
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "account_transaction", schema = "sunday")
+@Table(
+    name = "account_transaction",
+    schema = "sunday",
+    indexes = [Index(name = "uq_account_transaction_operation", columnList = "operation_id", unique = true)]
+)
 class AccountTransactionJpaEntity(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -40,6 +45,9 @@ class AccountTransactionJpaEntity(
     @Column(name = "description", length = 500)
     val description: String?,
 
+    @Column(name = "operation_id", length = 150, unique = true)
+    val operationId: String? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
@@ -52,6 +60,7 @@ class AccountTransactionJpaEntity(
                 amount = domain.amount,
                 balanceAfter = domain.balanceAfter,
                 description = domain.description,
+                operationId = domain.operationId,
                 createdAt = domain.createdAt
             )
     }
@@ -63,6 +72,7 @@ class AccountTransactionJpaEntity(
         amount = amount,
         balanceAfter = balanceAfter,
         description = description,
+        operationId = operationId,
         createdAt = createdAt
     )
 }

@@ -53,6 +53,7 @@ data class Transfer(
 
     fun reverse(): Transfer {
         if (status != TransferStatus.COMPLETED) throw TransferNotReversibleException(id, status.name)
+
         return copy(status = TransferStatus.REVERSED, updatedAt = LocalDateTime.now())
     }
 }

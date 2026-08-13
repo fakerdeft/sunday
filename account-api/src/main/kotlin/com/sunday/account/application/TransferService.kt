@@ -36,10 +36,12 @@ class TransferService(
             ?: throw AccountNotFoundByMemberException(receiverMemberId)
 
         val (withdrawnAccount, withdrawTx) = senderAccount.withdraw(amount, "송금 (받는 분: $receiverMemberId)")
+
         transactionRepository.save(withdrawTx)
         accountRepository.save(withdrawnAccount)
 
         val (depositedAccount, depositTx) = receiverAccount.deposit(amount, "송금 받음 (보낸 분: $senderMemberId)")
+
         transactionRepository.save(depositTx)
         accountRepository.save(depositedAccount)
 
@@ -74,16 +76,19 @@ class TransferService(
     @Transactional
     fun reverseTransfer(transferId: Long): Transfer {
         var transfer = getTransfer(transferId)
+
         transfer = transfer.reverse()
 
         val receiverAccount = accountRepository.findById(transfer.receiverAccountId)!!
         val senderAccount = accountRepository.findById(transfer.senderAccountId)!!
 
         val (withdrawnReceiver, withdrawTx) = receiverAccount.withdraw(transfer.amount, "송금 취소")
+
         transactionRepository.save(withdrawTx)
         accountRepository.save(withdrawnReceiver)
 
         val (depositedSender, depositTx) = senderAccount.deposit(transfer.amount, "송금 취소 환불")
+
         transactionRepository.save(depositTx)
         accountRepository.save(depositedSender)
 

@@ -1,9 +1,10 @@
-package com.sunday.member.presentation
+package com.sunday.member.api
 
 import com.sunday.common.auth.UserId
 import com.sunday.member.application.MemberService
-import com.sunday.member.presentation.dto.CreateMemberRequest
-import com.sunday.member.presentation.dto.MemberResponse
+import com.sunday.member.api.dto.CreateMemberRequest
+import com.sunday.member.api.dto.MemberResponse
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
@@ -33,7 +34,7 @@ class MemberController(
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    fun createMember(@RequestBody request: CreateMemberRequest): MemberResponse {
+    fun createMember(@Valid @RequestBody request: CreateMemberRequest): MemberResponse {
         return MemberResponse.from(memberService.createMember(request.name))
     }
 

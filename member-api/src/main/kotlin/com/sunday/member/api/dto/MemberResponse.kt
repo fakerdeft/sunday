@@ -1,4 +1,4 @@
-package com.sunday.member.presentation.dto
+package com.sunday.member.api.dto
 
 import com.sunday.member.domain.Member
 

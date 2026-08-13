@@ -30,6 +30,7 @@ class MemberService(
     @Transactional
     fun createMember(name: String): Member {
         val member = Member.create(name)
+
         return memberRepository.save(member)
     }
 }

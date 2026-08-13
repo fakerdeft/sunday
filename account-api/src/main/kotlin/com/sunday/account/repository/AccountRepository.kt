@@ -13,6 +13,9 @@ class AccountRepository(private val jpaRepository: AccountJpaRepository) {
     fun findByMemberId(memberId: Long): Account? =
         jpaRepository.findByMemberId(memberId)?.toDomain()
 
+    fun findByMemberIdForUpdate(memberId: Long): Account? =
+        jpaRepository.findByMemberIdForUpdate(memberId)?.toDomain()
+
     fun findByUserId(userId: String): Account? =
         jpaRepository.findByUserId(userId)?.toDomain()
 

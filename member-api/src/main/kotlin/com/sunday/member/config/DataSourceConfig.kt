@@ -38,8 +38,10 @@ class ReplicationDataSourceConfig {
             "master" to masterDataSource,
             "slave" to slaveDataSource
         )
+
         routingDataSource.setTargetDataSources(dataSourceMap)
         routingDataSource.setDefaultTargetDataSource(masterDataSource)
+
         return routingDataSource
     }
 
@@ -52,6 +54,11 @@ class ReplicationDataSourceConfig {
 
 class ReplicationRoutingDataSource : AbstractRoutingDataSource() {
     override fun determineCurrentLookupKey(): Any {
-        return if (TransactionSynchronizationManager.isCurrentTransactionReadOnly()) "slave" else "master"
+        if (TransactionSynchronizationManager.isCurrentTransactionReadOnly()) {
+
+            return "slave"
+        }
+
+        return "master"
     }
 }

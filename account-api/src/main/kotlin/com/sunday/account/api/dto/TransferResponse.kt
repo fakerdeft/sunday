@@ -1,14 +1,7 @@
-package com.sunday.account.presentation.dto
+package com.sunday.account.api.dto
 
 import com.sunday.account.domain.Transfer
 import java.math.BigDecimal
-
-data class TransferRequest(
-    val receiverMemberId: Long,
-    val amount: BigDecimal,
-    val idempotencyKey: String,
-    val description: String? = null
-)
 
 data class TransferResponse(
     val id: Long,

@@ -43,6 +43,9 @@ class TransferNotFoundException(id: Long) :
 class DuplicateTransferException(idempotencyKey: String) :
     AccountException("중복된 이체 요청입니다. (키: $idempotencyKey)"), DuplicateRequestException
 
+class DuplicateAccountOperationException(operationId: String) :
+    AccountException("동일한 작업 키가 다른 계좌 거래에 사용되었습니다: $operationId"), DuplicateRequestException
+
 class TransferToSelfException :
     AccountException("자신에게 이체할 수 없습니다.")
 

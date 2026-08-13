@@ -10,6 +10,7 @@ data class AccountTransaction(
     val amount: BigDecimal,
     val balanceAfter: BigDecimal,
     val description: String?,
+    val operationId: String? = null,
     val createdAt: LocalDateTime = LocalDateTime.now()
 ) {
     init {
@@ -23,7 +24,8 @@ data class AccountTransaction(
             type: TransactionType,
             amount: BigDecimal,
             balanceAfter: BigDecimal,
-            description: String?
+            description: String?,
+            operationId: String? = null
         ): AccountTransaction {
             return AccountTransaction(
                 id = 0L,
@@ -31,7 +33,8 @@ data class AccountTransaction(
                 transactionType = type,
                 amount = amount,
                 balanceAfter = balanceAfter,
-                description = description
+                description = description,
+                operationId = operationId
             )
         }
     }

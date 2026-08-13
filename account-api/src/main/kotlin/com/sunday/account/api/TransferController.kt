@@ -1,14 +1,15 @@
-package com.sunday.account.presentation
+package com.sunday.account.api
 
 import com.sunday.account.application.TransferService
-import com.sunday.account.presentation.dto.TransferRequest
-import com.sunday.account.presentation.dto.TransferResponse
+import com.sunday.account.api.dto.TransferRequest
+import com.sunday.account.api.dto.TransferResponse
+import com.sunday.common.auth.UserId
+import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
@@ -22,16 +23,17 @@ class TransferController(
     @PostMapping
     @ResponseStatus(HttpStatus.OK)
     fun transfer(
-        @RequestHeader("X-USER-ID") userId: String,
-        @RequestBody request: TransferRequest
+        @UserId memberId: Long,
+        @Valid @RequestBody request: TransferRequest
     ): TransferResponse {
         val transfer = transferService.transfer(
-            senderMemberId = userId.toLong(),
+            senderMemberId = memberId,
             receiverMemberId = request.receiverMemberId,
             amount = request.amount,
             idempotencyKey = request.idempotencyKey,
             description = request.description
         )
+
         return TransferResponse.from(transfer)
     }
 
@@ -43,14 +45,14 @@ class TransferController(
 
     @GetMapping("/sent")
     @ResponseStatus(HttpStatus.OK)
-    fun getSentTransfers(@RequestHeader("X-USER-ID") userId: String): List<TransferResponse> {
-        return transferService.getSentTransfers(userId.toLong()).map { TransferResponse.from(it) }
+    fun getSentTransfers(@UserId memberId: Long): List<TransferResponse> {
+        return transferService.getSentTransfers(memberId).map { TransferResponse.from(it) }
     }
 
     @GetMapping("/received")
     @ResponseStatus(HttpStatus.OK)
-    fun getReceivedTransfers(@RequestHeader("X-USER-ID") userId: String): List<TransferResponse> {
-        return transferService.getReceivedTransfers(userId.toLong()).map { TransferResponse.from(it) }
+    fun getReceivedTransfers(@UserId memberId: Long): List<TransferResponse> {
+        return transferService.getReceivedTransfers(memberId).map { TransferResponse.from(it) }
     }
 
     @PostMapping("/{transferId}/reverse")

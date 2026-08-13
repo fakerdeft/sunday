@@ -14,14 +14,18 @@ class AccountTransactionRepository(
 ) {
     fun save(domain: AccountTransaction): AccountTransaction {
         val accountRef = accountJpaRepository.getReferenceById(domain.accountId)
+
         return jpaRepository.save(AccountTransactionJpaEntity.from(domain, accountRef)).toDomain()
     }
 
+    fun findByOperationId(operationId: String): AccountTransaction? =
+        jpaRepository.findByOperationId(operationId)?.toDomain()
+
     fun findByAccountId(accountId: Long): List<AccountTransaction> =
-        jpaRepository.findByAccount_IdOrderByCreatedAtDesc(accountId).map { it.toDomain() }
+        jpaRepository.findByAccountIdOrderByCreatedAtDesc(accountId).map { it.toDomain() }
 
     fun findByAccountId(accountId: Long, page: Int, size: Int): List<AccountTransaction> =
-        jpaRepository.findByAccount_IdOrderByCreatedAtDesc(accountId, PageRequest.of(page, size))
+        jpaRepository.findByAccountIdOrderByCreatedAtDesc(accountId, PageRequest.of(page, size))
             .map { it.toDomain() }
 
     fun findByAccountIdWithAccount(accountId: Long): List<AccountTransaction> =
