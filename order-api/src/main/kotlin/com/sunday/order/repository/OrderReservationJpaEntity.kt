@@ -15,7 +15,7 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "order_reservations",
-    schema = "sunday",
+    schema = "order_service",
     indexes = [
         Index(name = "idx_reservations_member_id", columnList = "member_id"),
         Index(name = "idx_reservations_status_expire", columnList = "status, expire_at")

@@ -17,7 +17,7 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "product_stock",
-    schema = "sunday",
+    schema = "order_service",
     indexes = [Index(name = "idx_product_stock_available", columnList = "product_id, status")]
 )
 class ProductStockJpaEntity(

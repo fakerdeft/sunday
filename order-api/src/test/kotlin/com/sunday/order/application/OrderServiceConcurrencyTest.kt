@@ -46,7 +46,7 @@ class OrderServiceConcurrencyTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.jpa.hibernate.ddl-auto") { "create" }
-            registry.add("spring.jpa.properties.hibernate.default_schema") { "sunday" }
+            registry.add("spring.jpa.properties.hibernate.default_schema") { "order_service" }
         }
     }
 
@@ -66,7 +66,7 @@ class OrderServiceConcurrencyTest {
         jdbcTemplate.execute(
             """
             CREATE UNIQUE INDEX IF NOT EXISTS uq_reservations_pending_member_product
-            ON sunday.order_reservations(member_id, product_id)
+            ON order_service.order_reservations(member_id, product_id)
             WHERE status = 'PENDING'
             """.trimIndent()
         )

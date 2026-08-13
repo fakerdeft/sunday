@@ -36,7 +36,7 @@ class AccountServiceIdempotencyTest {
             registry.add("spring.datasource.username") { postgres.username }
             registry.add("spring.datasource.password") { postgres.password }
             registry.add("spring.jpa.hibernate.ddl-auto") { "create" }
-            registry.add("spring.jpa.properties.hibernate.default_schema") { "sunday" }
+            registry.add("spring.jpa.properties.hibernate.default_schema") { "account_service" }
         }
     }
 

@@ -50,7 +50,9 @@ HELP.md
 # Config files (managed via sunday-config submodule)
 **/src/main/resources/application*.yml
 /infra/
-load-test/
+
+# Load-test assets are versioned in the sunday-config submodule.
+/load-test/
 
 # Claude Code
 .claude/

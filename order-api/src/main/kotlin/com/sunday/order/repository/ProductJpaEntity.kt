@@ -11,7 +11,7 @@ import java.math.BigDecimal
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "product", schema = "sunday")
+@Table(name = "product", schema = "order_service")
 class ProductJpaEntity(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

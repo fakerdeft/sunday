@@ -10,7 +10,7 @@ import jakarta.persistence.Table
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "member", schema = "sunday")
+@Table(name = "member", schema = "member_service")
 class MemberJpaEntity(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

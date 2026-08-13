@@ -21,7 +21,7 @@ interface OrderReservationJpaRepository : JpaRepository<OrderReservationJpaEntit
     @Query(
         value = """
             SELECT *
-            FROM sunday.order_reservations
+            FROM order_service.order_reservations
             WHERE status = 'PENDING' AND expire_at <= :now
             ORDER BY expire_at
             LIMIT :batchSize

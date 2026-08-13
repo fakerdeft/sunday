@@ -17,7 +17,7 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "payment",
-    schema = "sunday",
+    schema = "payment_service",
     indexes = [
         Index(name = "uq_payment_order_id", columnList = "order_id", unique = true),
         Index(name = "idx_payment_idempotency_key", columnList = "idempotency_key", unique = true)

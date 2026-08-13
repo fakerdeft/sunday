@@ -20,7 +20,7 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "account_transaction",
-    schema = "sunday",
+    schema = "account_service",
     indexes = [Index(name = "uq_account_transaction_operation", columnList = "operation_id", unique = true)]
 )
 class AccountTransactionJpaEntity(

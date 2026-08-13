@@ -12,7 +12,7 @@ import java.math.BigDecimal
 import java.time.LocalDateTime
 
 @Entity
-@Table(name = "account", schema = "sunday")
+@Table(name = "account", schema = "account_service")
 class AccountJpaEntity(
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

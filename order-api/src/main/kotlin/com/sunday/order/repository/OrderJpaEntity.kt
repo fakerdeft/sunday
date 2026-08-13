@@ -15,7 +15,7 @@ import java.time.LocalDateTime
 @Entity
 @Table(
     name = "orders",
-    schema = "sunday",
+    schema = "order_service",
     indexes = [Index(name = "idx_orders_member_id", columnList = "member_id")]
 )
 class OrderJpaEntity(

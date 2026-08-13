@@ -9,7 +9,7 @@ import org.springframework.data.jpa.repository.Query
 interface ProductStockJpaRepository : JpaRepository<ProductStockJpaEntity, Long> {
 
     @Query(
-        value = "SELECT * FROM sunday.product_stock WHERE product_id = :productId AND status = 'AVAILABLE' LIMIT 1 FOR UPDATE SKIP LOCKED",
+        value = "SELECT * FROM order_service.product_stock WHERE product_id = :productId AND status = 'AVAILABLE' LIMIT 1 FOR UPDATE SKIP LOCKED",
         nativeQuery = true
     )
     fun findOneAvailableWithSkipLocked(productId: Long): ProductStockJpaEntity?
@@ -40,7 +40,7 @@ interface ProductStockJpaRepository : JpaRepository<ProductStockJpaEntity, Long>
 
     @Modifying
     @Query(
-        value = "UPDATE sunday.product_stock SET status = 'AVAILABLE', reserved_by = NULL, reservation_id = NULL WHERE reservation_id = :reservationId AND status = 'SOLD'",
+        value = "UPDATE order_service.product_stock SET status = 'AVAILABLE', reserved_by = NULL, reservation_id = NULL WHERE reservation_id = :reservationId AND status = 'SOLD'",
         nativeQuery = true
     )
     fun releaseByReservationId(reservationId: Long): Int
