@@ -13,6 +13,7 @@ data class OrderQueueProperties(
     var statusTtl: Duration = Duration.ofDays(7),
     var maxAttempts: Int = 3,
     var retryDelay: Duration = Duration.ofSeconds(1),
+    var readBlockTimeout: Duration = Duration.ofSeconds(1),
     var maxMessagesPerCycle: Int = 100
 ) {
     val streamKey: String

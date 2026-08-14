@@ -15,6 +15,7 @@ import org.springframework.data.redis.connection.stream.StreamReadOptions
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
+import java.time.Duration
 import java.time.Instant
 
 @Component
@@ -51,28 +52,58 @@ class OrderQueueWorker(
     @Scheduled(fixedDelayString = "\${sunday.order.queue.poll-delay-ms:100}")
     fun processAvailableMessages() {
         try {
-            repeat(properties.maxMessagesPerCycle) {
-                val record = readNext() ?: return
+            val pendingRecords = read(
+                offset = ReadOffset.from("0-0"),
+                count = properties.maxMessagesPerCycle
+            )
+            val pendingCompleted = processRecordsInOrder(pendingRecords)
 
-                if (!processRecord(record)) return
+            if (!pendingCompleted) {
+                return
+            }
+
+            val remainingCount = properties.maxMessagesPerCycle - pendingRecords.size
+
+            if (remainingCount > 0) {
+                val newRecords = read(
+                    offset = ReadOffset.lastConsumed(),
+                    count = remainingCount,
+                    blockTimeout = properties.readBlockTimeout.takeIf { pendingRecords.isEmpty() }
+                )
+                processRecordsInOrder(newRecords)
             }
         } catch (e: Exception) {
-            log.error("주문 대기열을 조회하지 못했습니다", e)
+            log.error("주문 대기열 처리 주기에 실패했습니다", e)
         }
     }
 
-    private fun readNext(): MapRecord<String, String, String>? {
-        val pending = read(ReadOffset.from("0-0"))
+    private fun read(
+        offset: ReadOffset,
+        count: Int,
+        blockTimeout: Duration? = null
+    ): List<MapRecord<String, String, String>> {
+        var options = StreamReadOptions.empty().count(count.toLong())
 
-        return pending ?: read(ReadOffset.lastConsumed())
+        if (blockTimeout != null) {
+            options = options.block(blockTimeout)
+        }
+
+        return stream.read(
+            consumer,
+            options,
+            StreamOffset.create(properties.streamKey, offset)
+        )
     }
 
-    private fun read(offset: ReadOffset): MapRecord<String, String, String>? =
-        stream.read(
-            consumer,
-            StreamReadOptions.empty().count(1),
-            StreamOffset.create(properties.streamKey, offset)
-        ).firstOrNull()
+    private fun processRecordsInOrder(records: List<MapRecord<String, String, String>>): Boolean {
+        for (record in records) {
+            if (!processRecord(record)) {
+                return false
+            }
+        }
+
+        return true
+    }
 
     private fun processRecord(record: MapRecord<String, String, String>): Boolean {
         val requestId = record.value["requestId"]
@@ -100,7 +131,6 @@ class OrderQueueWorker(
         }
 
         if (queuedOrder.retryAt?.isAfter(Instant.now()) == true) {
-
             return false
         }
 

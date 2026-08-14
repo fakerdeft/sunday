@@ -24,6 +24,7 @@ import org.testcontainers.junit.jupiter.Testcontainers
 import org.testcontainers.utility.DockerImageName
 import java.math.BigDecimal
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDateTime
 import java.util.UUID
 
@@ -66,6 +67,7 @@ class OrderQueueIntegrationTest {
             registry.add("sunday.order.queue.worker-enabled") { "true" }
             registry.add("sunday.order.queue.poll-delay-ms") { "3600000" }
             registry.add("sunday.order.queue.retry-delay") { "20ms" }
+            registry.add("sunday.order.queue.read-block-timeout") { "50ms" }
             registry.add("sunday.order.queue.max-messages-per-cycle") { "100" }
         }
     }
@@ -149,7 +151,7 @@ class OrderQueueIntegrationTest {
     }
 
     @Test
-    fun `one worker cycle processes multiple queued orders`() {
+    fun `one worker cycle reads and processes multiple queued orders`() {
         saveUnitStocks(3)
         val queuedOrders = (1L..5L).map { memberId ->
             queueService.enqueue("continuous-order-key-$memberId", memberId, productId, 1)
@@ -160,12 +162,35 @@ class OrderQueueIntegrationTest {
         val statuses = queuedOrders.map { queuedOrder ->
             queueService.find(queuedOrder.requestId)?.status
         }
-        assertThat(statuses.count { it == OrderQueueStatus.SUCCEEDED }).isEqualTo(3)
-        assertThat(statuses.count { it == OrderQueueStatus.SOLD_OUT }).isEqualTo(2)
-        assertThat(statuses.none { it == OrderQueueStatus.WAITING || it == OrderQueueStatus.PROCESSING }).isTrue()
+        assertThat(statuses.take(3)).containsOnly(OrderQueueStatus.SUCCEEDED)
+        assertThat(statuses.drop(3)).containsOnly(OrderQueueStatus.SOLD_OUT)
         assertThat(
             reservationRepository.countByProductIdAndStatus(productId, ReservationStatus.PENDING)
         ).isEqualTo(3L)
+    }
+
+    @Test
+    fun `retrying first order blocks later orders to preserve stream order`() {
+        saveUnitStocks(1)
+        val first = queueService.enqueue("ordered-first-key", 201L, productId, 1)
+        val second = queueService.enqueue("ordered-second-key", 202L, productId, 1)
+
+        queueService.markWaitingForRetry(first.requestId, "일시 오류", Instant.now().plusSeconds(10))
+
+        queueWorker.processAvailableMessages()
+
+        assertThat(queueService.find(first.requestId)?.status).isEqualTo(OrderQueueStatus.WAITING)
+        assertThat(queueService.find(second.requestId)?.status).isEqualTo(OrderQueueStatus.WAITING)
+        assertThat(productStockRepository.countAvailable(productId)).isEqualTo(1L)
+
+        queueService.markWaitingForRetry(first.requestId, "재시도 가능", Instant.now().minusMillis(1))
+
+        queueWorker.processAvailableMessages()
+
+        assertThat(queueService.find(first.requestId)?.status).isEqualTo(OrderQueueStatus.SUCCEEDED)
+        assertThat(queueService.find(second.requestId)?.status).isEqualTo(OrderQueueStatus.SOLD_OUT)
+        assertThat(reservationRepository.findByMemberId(201L)).hasSize(1)
+        assertThat(reservationRepository.findByMemberId(202L)).isEmpty()
     }
 
     private fun saveUnitStocks(quantity: Int) {
