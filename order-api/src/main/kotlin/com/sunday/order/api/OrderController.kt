@@ -1,13 +1,13 @@
 package com.sunday.order.api
 
+import com.sunday.common.auth.UserId
 import com.sunday.order.api.dto.CreateOrderRequest
 import com.sunday.order.api.dto.OrderResponse
-import com.sunday.order.api.dto.OrderRequestResponse
 import com.sunday.order.api.dto.ProductResponse
+import com.sunday.order.api.dto.ProductStockSnapshotResponse
 import com.sunday.order.api.dto.ReservationResponse
-import com.sunday.order.application.OrderQueueService
+import com.sunday.order.application.AdmittedOrderService
 import com.sunday.order.application.OrderService
-import com.sunday.common.auth.UserId
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -23,7 +23,7 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/orders")
 class OrderController(
     private val orderService: OrderService,
-    private val orderQueueService: OrderQueueService
+    private val admittedOrderService: AdmittedOrderService
 ) {
     @GetMapping("/products")
     fun getProducts(): List<ProductResponse> =
@@ -40,26 +40,26 @@ class OrderController(
         return ProductResponse.from(availability.product, availability.availableStock)
     }
 
-    @PostMapping("/requests")
-    @ResponseStatus(HttpStatus.ACCEPTED)
-    fun createOrderRequest(
+    /** 대기열 서버가 입장 인원을 정할 때 주기적으로 조회한다. */
+    @GetMapping("/products/{productId}/stock-snapshot")
+    fun getStockSnapshot(@PathVariable productId: Long): ProductStockSnapshotResponse =
+        ProductStockSnapshotResponse.from(orderService.getStockSnapshot(productId))
+
+    /** 대기열에서 입장 증표를 받은 회원만 호출할 수 있다. */
+    @PostMapping("/reservations")
+    @ResponseStatus(HttpStatus.CREATED)
+    fun createReservation(
         @UserId memberId: Long,
-        @RequestHeader("Idempotency-Key", required = false) idempotencyKey: String?,
+        @RequestHeader(value = "X-ADMISSION-TOKEN", required = false) admissionToken: String?,
         @Valid @RequestBody request: CreateOrderRequest
-    ): OrderRequestResponse = OrderRequestResponse.from(
-        orderQueueService.enqueue(
-            idempotencyKey = idempotencyKey.orEmpty(),
+    ): ReservationResponse = ReservationResponse.from(
+        admittedOrderService.createReservation(
             memberId = memberId,
             productId = request.productId,
-            quantity = request.quantity
+            quantity = request.quantity,
+            admissionToken = admissionToken
         )
     )
-
-    @GetMapping("/requests/{requestId}")
-    fun getOrderRequest(
-        @UserId memberId: Long,
-        @PathVariable requestId: String
-    ): OrderRequestResponse = OrderRequestResponse.from(orderQueueService.get(requestId, memberId))
 
     @GetMapping("/reservations/me")
     fun getMyReservations(

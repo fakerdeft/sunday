@@ -1,36 +1,37 @@
 package com.sunday.order.application
 
 import com.sunday.order.domain.AlreadyPurchasedException
-import com.sunday.order.domain.DuplicatePendingOrderException
-import com.sunday.order.domain.HotDealNotActiveException
-import com.sunday.order.domain.InvalidOrderQuantityException
 import com.sunday.order.domain.InvalidOrderStatusException
 import com.sunday.order.domain.Order
 import com.sunday.order.domain.OrderNotFoundException
 import com.sunday.order.domain.OrderReservation
 import com.sunday.order.domain.OrderStatus
-import com.sunday.order.domain.OutOfStockException
 import com.sunday.order.domain.Product
 import com.sunday.order.domain.ProductNotFoundException
 import com.sunday.order.domain.ReservationExpiredException
 import com.sunday.order.domain.ReservationNotFoundException
+import com.sunday.order.domain.ReservationOrigin
 import com.sunday.order.domain.ReservationStatus
-import com.sunday.order.domain.StockReservationMismatchException
 import com.sunday.order.repository.OrderRepository
 import com.sunday.order.repository.OrderReservationRepository
 import com.sunday.order.repository.ProductRepository
 import com.sunday.order.repository.ProductStockRepository
-import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.util.UUID
 
+/**
+ * 운영 주문 경로다.
+ *
+ * 주문 생성은 대기열에서 입장이 허가된 회원만 [createAdmittedReservation] 으로 호출한다.
+ * 재고 선점 방식을 비교하기 위한 경로는 `com.sunday.order.benchmark` 패키지에 따로 있다.
+ */
 @Service
 class OrderService(
     private val productRepository: ProductRepository,
     private val reservationRepository: OrderReservationRepository,
     private val orderRepository: OrderRepository,
-    private val productStockRepository: ProductStockRepository
+    private val productStockRepository: ProductStockRepository,
+    private val stockReservationService: StockReservationService
 ) {
     companion object {
         private const val EXPIRATION_BATCH_SIZE = 100
@@ -49,23 +50,27 @@ class OrderService(
         return ProductAvailability(product, productStockRepository.countAvailable(productId))
     }
 
+    /**
+     * 게이트 서버가 발급 가능 수량을 정하는 데 쓰는 재고 현황이다.
+     * 주기마다 상품당 한 번만 호출되므로 대기 트래픽이 늘어도 이 조회는 늘지 않는다.
+     */
+    @Transactional(readOnly = true)
+    fun getStockSnapshot(productId: Long): ProductStockSnapshot = ProductStockSnapshot(
+        productId = productId,
+        availableStock = productStockRepository.countAvailable(productId)
+    )
+
+    /**
+     * 대기열에서 입장이 허가된 회원의 주문이다. 입장 인원이 제한되어 있으므로 대기 없이 바로 처리한다.
+     */
     @Transactional
-    fun createQueuedReservation(
-        requestId: String,
-        memberId: Long,
-        productId: Long,
-        quantity: Int
-    ): OrderReservation {
-        val reservationKey = "queue:$requestId"
-        val existingReservation = reservationRepository.findByReservationKey(reservationKey)
-
-        if (existingReservation != null) {
-
-            return existingReservation
-        }
-
-        return reserveUnitStock(memberId, productId, quantity, reservationKey)
-    }
+    fun createAdmittedReservation(memberId: Long, productId: Long, quantity: Int): OrderReservation =
+        stockReservationService.reserve(
+            memberId = memberId,
+            productId = productId,
+            quantity = quantity,
+            reservationKey = ReservationOrigin.ADMITTED.newKey()
+        )
 
     @Transactional(readOnly = true)
     fun getMyReservations(memberId: Long): List<OrderReservation> =
@@ -156,43 +161,6 @@ class OrderService(
         return expired.size
     }
 
-    /**
-     * 로컬 부하 테스트에서 실제 주문 처리 방식과 비관적 락 방식을 비교하기 위한 직접 호출 경로다.
-     */
-    @Transactional
-    fun createReservationWithSkipLocked(memberId: Long, productId: Long, quantity: Int): OrderReservation {
-        return reserveUnitStock(memberId, productId, quantity, "skip-locked:${UUID.randomUUID()}")
-    }
-
-    /**
-     * 로컬 부하 테스트에서 사용하는 DB 비관적 락 기준선이다.
-     */
-    @Transactional
-    fun createReservationWithPessimisticLock(
-        memberId: Long,
-        productId: Long,
-        quantity: Int
-    ): OrderReservation {
-        validateQuantity(quantity)
-        checkDuplicate(memberId, productId)
-
-        val product = productRepository.findByIdWithPessimisticLock(productId)
-            ?: throw ProductNotFoundException(productId)
-
-        validateProductForReservation(product, memberId)
-        product.decreaseStock(quantity)
-        productRepository.save(product)
-
-        return savePendingReservation(
-            OrderReservation.create(
-                memberId = memberId,
-                product = product,
-                quantity = quantity,
-                reservationKey = "pessimistic:${UUID.randomUUID()}"
-            )
-        )
-    }
-
     private fun withAvailability(products: List<Product>): List<ProductAvailability> {
         if (products.isEmpty()) {
 
@@ -206,78 +174,16 @@ class OrderService(
         }
     }
 
-    private fun reserveUnitStock(
-        memberId: Long,
-        productId: Long,
-        quantity: Int,
-        reservationKey: String
-    ): OrderReservation {
-        validateQuantity(quantity)
-        checkDuplicate(memberId, productId)
-
-        val product = productRepository.findById(productId) ?: throw ProductNotFoundException(productId)
-
-        validateProductForReservation(product, memberId)
-
-        val reservation = savePendingReservation(
-            OrderReservation.create(
-                memberId = memberId,
-                product = product,
-                quantity = quantity,
-                reservationKey = reservationKey
-            )
-        )
-
-        repeat(quantity) { claimed ->
-            productStockRepository.claimWithSkipLocked(productId, memberId, reservation.id)
-                ?: throw OutOfStockException(productId, quantity, claimed)
-        }
-
-        return reservation
-    }
-
-    private fun validateQuantity(quantity: Int) {
-        if (quantity <= 0) {
-            throw InvalidOrderQuantityException(quantity)
-        }
-    }
-
-    private fun checkDuplicate(memberId: Long, productId: Long) {
-        if (reservationRepository.existsPendingReservation(memberId, productId)) {
-            throw DuplicatePendingOrderException(memberId, productId)
-        }
-    }
-
-    private fun validateProductForReservation(product: Product, memberId: Long) {
-        if (product.isHotDeal && !product.isHotDealActive()) {
-            throw HotDealNotActiveException(product.id)
-        }
-        if (orderRepository.existsPaidOrder(memberId, product.id)) {
-            throw AlreadyPurchasedException(memberId, product.id)
-        }
-    }
-
-    private fun savePendingReservation(reservation: OrderReservation): OrderReservation =
-        try {
-            reservationRepository.saveAndFlush(reservation)
-        } catch (e: DataIntegrityViolationException) {
-            throw DuplicatePendingOrderException(reservation.memberId, reservation.productId)
-        }
-
     private fun restoreStock(reservation: OrderReservation) {
-        if (
-            reservation.reservationKey.startsWith("skip-locked:") ||
-            reservation.reservationKey.startsWith("queue:")
-        ) {
-            val released = productStockRepository.releaseByReservationId(reservation.id)
+        val origin = ReservationOrigin.of(reservation.reservationKey)
 
-            if (released != reservation.quantity) {
-                throw StockReservationMismatchException(reservation.id, reservation.quantity, released)
-            }
+        if (origin == null || origin.usesUnitStock()) {
+            stockReservationService.release(reservation)
 
             return
         }
 
+        // 비교 측정 전용(비관적 락) 예약만 단일 수량 컬럼을 되돌린다.
         val product = productRepository.findByIdWithPessimisticLock(reservation.productId)
             ?: throw ProductNotFoundException(reservation.productId)
 

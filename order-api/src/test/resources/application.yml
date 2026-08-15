@@ -1,0 +1,4 @@
+# 테스트에서만 쓰는 기본 설정. 실행 설정은 sunday-config 서브모듈에서 주입된다.
+sunday:
+  order:
+    admission-secret: test-admission-secret

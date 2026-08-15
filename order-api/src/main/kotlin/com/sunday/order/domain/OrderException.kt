@@ -42,6 +42,12 @@ class DuplicatePendingOrderException(memberId: Long, productId: Long) :
 class OrderQueueRequestNotFoundException(requestId: String) :
     OrderException("대기열 주문 요청을 찾을 수 없습니다: $requestId"), NotFoundException
 
+class NotAdmittedException(productId: Long, memberId: Long, reason: String) :
+    OrderException(
+        "회원 $memberId 님은 상품 $productId 의 주문 입장이 허가되지 않았습니다. " +
+            "대기열에서 순번을 기다려 주세요. (사유: $reason)"
+    )
+
 class OrderQueueIdempotencyConflictException :
     OrderException("같은 멱등성 키가 다른 주문 요청에 이미 사용되었습니다."),
     DuplicateRequestException

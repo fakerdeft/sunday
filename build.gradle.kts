@@ -1,4 +1,4 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+﻿import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
     id("org.springframework.boot") version "4.0.1" apply false
@@ -116,15 +116,21 @@ tasks.register("accountApi") {
     dependsOn(":account-api:bootRun")
 }
 
+tasks.register("gateApi") {
+    group = "servers"
+    description = "Start gate-api (port 8085)"
+    dependsOn(":gate-api:bootRun")
+}
+
 tasks.register("orderApi") {
     group = "servers"
-    description = "Start order-api (port 8083)"
+    description = "Start order-api (port 8084)"
     dependsOn(":order-api:bootRun")
 }
 
 tasks.register("paymentApi") {
     group = "servers"
-    description = "Start payment-api (port 8084)"
+    description = "Start payment-api (port 8083)"
     dependsOn(":payment-api:bootRun")
 }
 

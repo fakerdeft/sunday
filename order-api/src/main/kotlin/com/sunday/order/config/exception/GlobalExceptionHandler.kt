@@ -9,6 +9,7 @@ import com.sunday.common.exception.NotFoundException
 import com.sunday.common.exception.OutOfStockException
 import com.sunday.order.config.auth.InvalidUserIdException
 import com.sunday.order.config.auth.MissingUserIdException
+import com.sunday.order.domain.NotAdmittedException
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
@@ -71,6 +72,11 @@ class GlobalExceptionHandler {
                 log.warn("락 획득에 실패했습니다: {}", e.message)
                 response.status = HttpStatus.SERVICE_UNAVAILABLE.value()
                 ErrorResponse.of("LOCK_ACQUISITION_FAILED", e.message, requestId())
+            }
+            is NotAdmittedException -> {
+                log.debug("입장이 허가되지 않은 주문 요청입니다: {}", e.message)
+                response.status = HttpStatus.FORBIDDEN.value()
+                ErrorResponse.of("NOT_ADMITTED", e.message, requestId())
             }
             else -> {
                 log.error("예상하지 못한 런타임 오류가 발생했습니다", e)
