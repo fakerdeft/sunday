@@ -21,6 +21,17 @@ class AdmissionTokenCodec(secret: String) {
         private const val ALGORITHM = "HmacSHA256"
         private const val SEPARATOR = '.'
         private const val PAYLOAD_FIELD_COUNT = 3
+        private const val FINGERPRINT_ALGORITHM = "SHA-256"
+
+        /**
+         * 통행증을 고정 길이 지문으로 바꾼다. 같은 통행증은 언제나 같은 값이 된다.
+         *
+         * 통행증 자체를 저장하지 않고도 "이미 사용된 통행증"을 식별하기 위한 것이라 비밀키가 필요 없다.
+         */
+        fun fingerprint(token: String): String =
+            MessageDigest.getInstance(FINGERPRINT_ALGORITHM)
+                .digest(token.toByteArray(StandardCharsets.UTF_8))
+                .joinToString("") { byte -> "%02x".format(byte) }
     }
 
     private val key = SecretKeySpec(secret.toByteArray(StandardCharsets.UTF_8), ALGORITHM)

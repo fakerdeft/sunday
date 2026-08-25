@@ -1,6 +1,7 @@
 package com.sunday.order.application
 
 import com.sunday.order.domain.AlreadyPurchasedException
+import com.sunday.order.domain.DuplicatePendingOrderException
 import com.sunday.order.domain.InvalidOrderStatusException
 import com.sunday.order.domain.Order
 import com.sunday.order.domain.OrderNotFoundException
@@ -35,6 +36,13 @@ class OrderService(
 ) {
     companion object {
         private const val EXPIRATION_BATCH_SIZE = 100
+
+        /**
+         * 게이트는 통행증 한 장을 내줄 때 재고 하나를 차감한다.
+         * 주문이 두 개 이상을 가져가면 게이트가 센 수량과 실제로 팔린 수량이 어긋나므로
+         * 선착순 주문은 통행증 한 장당 한 개로 제한한다.
+         */
+        const val ORDER_QUANTITY = 1
     }
 
     @Transactional(readOnly = true)
@@ -61,16 +69,38 @@ class OrderService(
     )
 
     /**
-     * 대기열에서 입장이 허가된 회원의 주문이다. 입장 인원이 제한되어 있으므로 대기 없이 바로 처리한다.
+     * 게이트에서 통행증을 받은 회원의 주문이다.
+     *
+     * 통행증의 지문을 예약 키로 삼아 통행증 한 장이 예약 하나만 만들도록 한다.
+     * 같은 통행증으로 다시 요청하면 새로 만들지 않고 기존 예약을 그대로 돌려주므로,
+     * 응답을 받지 못한 클라이언트가 재시도해도 재고가 두 번 빠지지 않는다.
+     *
+     * 예약 생성은 [StockReservationService.reserve] 가 자체 트랜잭션으로 처리한다.
+     * 여기에 트랜잭션을 걸면 유니크 제약 위반 이후 같은 트랜잭션에서 복구 조회를 할 수 없어
+     * 이 메서드는 트랜잭션 경계를 갖지 않는다.
      */
-    @Transactional
-    fun createAdmittedReservation(memberId: Long, productId: Long, quantity: Int): OrderReservation =
-        stockReservationService.reserve(
-            memberId = memberId,
-            productId = productId,
-            quantity = quantity,
-            reservationKey = ReservationOrigin.ADMITTED.newKey()
-        )
+    fun createAdmittedReservation(
+        memberId: Long,
+        productId: Long,
+        tokenFingerprint: String
+    ): OrderReservation {
+        val reservationKey = ReservationOrigin.ADMITTED.key(tokenFingerprint)
+
+        reservationRepository.findByReservationKey(reservationKey)?.let { return it }
+
+        return try {
+            stockReservationService.reserve(
+                memberId = memberId,
+                productId = productId,
+                quantity = ORDER_QUANTITY,
+                reservationKey = reservationKey
+            )
+        } catch (e: DuplicatePendingOrderException) {
+            // 같은 통행증으로 동시에 들어온 요청이 먼저 예약을 만든 경우다.
+            // 다른 통행증 때문에 생긴 중복이면 조회 결과가 없으므로 그대로 알린다.
+            reservationRepository.findByReservationKey(reservationKey) ?: throw e
+        }
+    }
 
     @Transactional(readOnly = true)
     fun getMyReservations(memberId: Long): List<OrderReservation> =

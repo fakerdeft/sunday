@@ -42,6 +42,11 @@ class DuplicatePendingOrderException(memberId: Long, productId: Long) :
 class OrderQueueRequestNotFoundException(requestId: String) :
     OrderException("대기열 주문 요청을 찾을 수 없습니다: $requestId"), NotFoundException
 
+class SingleItemOnlyException(productId: Long, quantity: Int) :
+    OrderException(
+        "선착순 상품 $productId 는 통행증 한 장당 한 개만 주문할 수 있습니다. 입력값: $quantity"
+    )
+
 class NotAdmittedException(productId: Long, memberId: Long, reason: String) :
     OrderException(
         "회원 $memberId 님은 상품 $productId 의 주문 입장이 허가되지 않았습니다. " +

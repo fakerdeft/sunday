@@ -4,6 +4,7 @@ import com.sunday.common.admission.AdmissionTokenCodec
 import com.sunday.order.domain.NotAdmittedException
 import com.sunday.order.domain.OrderReservation
 import com.sunday.order.domain.ReservationStatus
+import com.sunday.order.domain.SingleItemOnlyException
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -39,12 +40,12 @@ class AdmittedOrderServiceTest {
     @Test
     fun `유효한 증표가 있으면 주문을 생성한다`() {
         val token = codec.issue(memberId, productId, Instant.now().plusSeconds(60))
-        every { orderService.createAdmittedReservation(memberId, productId, 1) } returns reservation()
+        every { orderService.createAdmittedReservation(memberId, productId, any()) } returns reservation()
 
         val created = admittedOrderService.createReservation(memberId, productId, 1, token)
 
         assertThat(created.memberId).isEqualTo(memberId)
-        verify(exactly = 1) { orderService.createAdmittedReservation(memberId, productId, 1) }
+        verify(exactly = 1) { orderService.createAdmittedReservation(memberId, productId, any()) }
     }
 
     @Test
@@ -81,6 +82,24 @@ class AdmittedOrderServiceTest {
         val otherProductToken = codec.issue(memberId, 99L, Instant.now().plusSeconds(60))
 
         assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 1, otherProductToken) }
+            .isInstanceOf(NotAdmittedException::class.java)
+
+        verify(exactly = 0) { orderService.createAdmittedReservation(any(), any(), any()) }
+    }
+
+    @Test
+    fun `수량이 1이 아니면 주문 로직에 들어가지 않는다`() {
+        val token = codec.issue(memberId, productId, Instant.now().plusSeconds(60))
+
+        assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 2, token) }
+            .isInstanceOf(SingleItemOnlyException::class.java)
+
+        verify(exactly = 0) { orderService.createAdmittedReservation(any(), any(), any()) }
+    }
+
+    @Test
+    fun `증표가 없으면 수량과 무관하게 입장 거절이 먼저다`() {
+        assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 5, null) }
             .isInstanceOf(NotAdmittedException::class.java)
 
         verify(exactly = 0) { orderService.createAdmittedReservation(any(), any(), any()) }

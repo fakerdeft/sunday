@@ -10,6 +10,7 @@ import com.sunday.common.exception.OutOfStockException
 import com.sunday.order.config.auth.InvalidUserIdException
 import com.sunday.order.config.auth.MissingUserIdException
 import com.sunday.order.domain.NotAdmittedException
+import com.sunday.order.domain.SingleItemOnlyException
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
@@ -72,6 +73,11 @@ class GlobalExceptionHandler {
                 log.warn("락 획득에 실패했습니다: {}", e.message)
                 response.status = HttpStatus.SERVICE_UNAVAILABLE.value()
                 ErrorResponse.of("LOCK_ACQUISITION_FAILED", e.message, requestId())
+            }
+            is SingleItemOnlyException -> {
+                log.debug("선착순 주문 수량이 올바르지 않습니다: {}", e.message)
+                response.status = HttpStatus.BAD_REQUEST.value()
+                ErrorResponse.of("SINGLE_ITEM_ONLY", e.message, requestId())
             }
             is NotAdmittedException -> {
                 log.debug("입장이 허가되지 않은 주문 요청입니다: {}", e.message)
