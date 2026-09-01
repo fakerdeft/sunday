@@ -35,7 +35,7 @@ class OrderApiClient(
         )
     }
 
-    /** 결제 성공 → 확정 주문 생성 (선점 → PAID Order) */
+    /** 결제 성공. 예약 확정 */
     fun confirmReservation(reservationId: Long) {
         restClient.post()
             .uri("/api/orders/reservations/{reservationId}/confirm", reservationId)
@@ -43,7 +43,7 @@ class OrderApiClient(
             .toBodilessEntity()
     }
 
-    /** 결제 실패 → 선점 취소 (재고 복구 O) */
+    /** 결제 실패. 예약 취소, 재고 복구 */
     fun cancelReservation(reservationId: Long) {
         restClient.post()
             .uri("/api/orders/reservations/{reservationId}/cancel", reservationId)
@@ -51,7 +51,7 @@ class OrderApiClient(
             .toBodilessEntity()
     }
 
-    /** 환불 → 확정 주문 취소 (재고 복구 X) */
+    /** 환불. 주문 취소, 재고 복구 없음 */
     fun cancelOrder(reservationId: Long) {
         restClient.post()
             .uri("/api/orders/{reservationId}/cancel", reservationId)

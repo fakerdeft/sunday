@@ -1,0 +1,229 @@
+{
+    "metrics": {
+        "order_accepted_duration": {
+            "avg": 1840.3110484000003,
+            "min": 56.989429,
+            "med": 1801.446602,
+            "max": 4067.160397,
+            "p(90)": 3349.8291297,
+            "p(95)": 3524.692921799999
+        },
+        "order_unexpected_response_rate": {
+            "passes": 0,
+            "fails": 1351,
+            "thresholds": {
+                "rate==0": false
+            },
+            "value": 0
+        },
+        "http_req_connecting": {
+            "med": 0,
+            "max": 52.929599,
+            "p(90)": 2.7104903,
+            "p(95)": 3.1591013499999994,
+            "avg": 1.1187007147016022,
+            "min": 0
+        },
+        "iterations": {
+            "count": 1351,
+            "rate": 102.84695796802744
+        },
+        "http_reqs": {
+            "count": 1374,
+            "rate": 104.59786842936322
+        },
+        "order_business_duration": {
+            "avg": 2231.9164842420464,
+            "min": 56.989429,
+            "med": 1940.505812,
+            "max": 4880.284163,
+            "p(90)": 3667.002071,
+            "p(95)": 3823.367598
+        },
+        "http_req_duration": {
+            "med": 1929.1951895,
+            "max": 4880.284163,
+            "p(90)": 3665.0593176,
+            "p(95)": 3822.0589277,
+            "avg": 2196.51726641485,
+            "min": 49.178394
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 1374,
+            "value": 0
+        },
+        "http_req_receiving": {
+            "min": 0.066705,
+            "med": 0.6707935,
+            "max": 6.816339,
+            "p(90)": 1.0743468,
+            "p(95)": 1.2477238999999996,
+            "avg": 0.7207335174672489
+        },
+        "vus_max": {
+            "value": 522,
+            "min": 300,
+            "max": 522
+        },
+        "data_sent": {
+            "count": 313113,
+            "rate": 23836.20988174906
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 2196.51726641485,
+            "min": 49.178394,
+            "med": 1929.1951895,
+            "max": 4880.284163,
+            "p(90)": 3665.0593176,
+            "p(95)": 3822.0589277
+        },
+        "http_req_sending": {
+            "min": 0.013501,
+            "med": 0.08265549999999999,
+            "max": 8.030275,
+            "p(90)": 0.200986,
+            "p(95)": 0.23487669999999977,
+            "avg": 0.11245686390101893
+        },
+        "order_success_count": {
+            "count": 100,
+            "rate": 7.612654179720758
+        },
+        "order_rejected_duration": {
+            "max": 4880.284163,
+            "p(90)": 3674.662834,
+            "p(95)": 3823.367598,
+            "avg": 2263.219876395688,
+            "min": 429.414,
+            "med": 1943.297978
+        },
+        "checks": {
+            "passes": 1356,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "data_received": {
+            "count": 444190,
+            "rate": 33814.64860090164
+        },
+        "order_business_rejection_count": {
+            "count": 1251,
+            "rate": 95.23430378830669
+        },
+        "iteration_duration": {
+            "avg": 2233.531451620281,
+            "min": 60.310699,
+            "med": 1940.88213,
+            "max": 4882.394347,
+            "p(90)": 3671.026247,
+            "p(95)": 3828.239939
+        },
+        "http_req_blocked": {
+            "avg": 1.2655088973799127,
+            "min": 0.0033,
+            "med": 0.011401,
+            "max": 117.887275,
+            "p(90)": 2.913426700000001,
+            "p(95)": 3.344876999999999
+        },
+        "http_req_waiting": {
+            "max": 4879.464141,
+            "p(90)": 3663.9839595,
+            "p(95)": 3820.5546581,
+            "avg": 2195.684076033483,
+            "min": 48.598147,
+            "med": 1928.4863180000002
+        },
+        "dropped_iterations": {
+            "count": 223,
+            "rate": 16.97621882077729
+        },
+        "vus": {
+            "value": 19,
+            "min": 0,
+            "max": 509
+        }
+    },
+    "setup_data": {
+        "memberIdBase": 1786630928704000
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {},
+                "checks": {
+                        "load-test data reset succeeds": {
+                            "name": "load-test data reset succeeds",
+                            "path": "::setup::load-test data reset succeeds",
+                            "id": "7c4e82e46e015601d741d793e9b1f4b6",
+                            "passes": 1,
+                            "fails": 0
+                        }
+                    }
+            },
+            "teardown": {
+                "groups": {},
+                "checks": {
+                        "state endpoint succeeds": {
+                            "id": "200e488ace8994c0c5a24cf5114e27e5",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "state endpoint succeeds",
+                            "path": "::teardown::state endpoint succeeds"
+                        },
+                        "successful reservations never exceed stock": {
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "successful reservations never exceed stock",
+                            "path": "::teardown::successful reservations never exceed stock",
+                            "id": "5ebf9531c9be6404e3f95623a2554466"
+                        },
+                        "exactly the configured stock is reserved": {
+                            "name": "exactly the configured stock is reserved",
+                            "path": "::teardown::exactly the configured stock is reserved",
+                            "id": "f06e22467e52f35e34620a9956ced5f6",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "DB unit stock invariant holds": {
+                            "id": "6fcef5bb135712ec2256df1a44573a1e",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "DB unit stock invariant holds",
+                            "path": "::teardown::DB unit stock invariant holds"
+                        }
+                    },
+                "name": "teardown",
+                "path": "::teardown",
+                "id": "a8a9942382e8ffe2e56ef29e664b8229"
+            }
+        },
+        "checks": {
+            "order is accepted or rejected by business rule": {
+                "path": "::order is accepted or rejected by business rule",
+                "id": "d2fed2ce08fb910f5971929ec52b6b68",
+                "passes": 1351,
+                "fails": 0,
+                "name": "order is accepted or rejected by business rule"
+            }
+        }
+    }
+}

@@ -10,9 +10,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-/**
- * 반복 측정 시 통행증 상태를 초기화하기 위한 엔드포인트다. `local` 프로필에서만 등록된다.
- */
+/** 반복 측정용 초기화. `local` 프로필에서만 등록된다. */
 @Profile("local")
 @RestController
 @RequestMapping("/load-tests/order-pass")
@@ -25,7 +23,6 @@ class OrderPassLoadTestController(
     fun reset(@PathVariable productId: Long) {
         orderPassService.reset(productId)
 
-        // 초기화 직후 바로 측정에 들어갈 수 있도록 재고를 즉시 한 번 동기화한다.
         stockSyncScheduler.sync(productId)
     }
 }

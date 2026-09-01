@@ -1,0 +1,12 @@
+Limit  (cost=0.43..0.76 rows=1 width=60) (actual time=131.312..131.313 rows=1 loops=1)
+  Buffers: shared hit=9965
+  ->  LockRows  (cost=0.43..122739.65 rows=371022 width=60) (actual time=131.310..131.311 rows=1 loops=1)
+        Buffers: shared hit=9965
+        ->  Index Scan using product_stock_pkey on product_stock  (cost=0.43..119029.43 rows=371022 width=60) (actual time=117.069..117.070 rows=1 loops=1)
+              Filter: ((product_id = 1) AND ((status)::text = 'AVAILABLE'::text))
+              Rows Removed by Filter: 900000
+              Buffers: shared hit=9963
+Planning:
+  Buffers: shared hit=130
+Planning Time: 0.424 ms
+Execution Time: 131.349 ms

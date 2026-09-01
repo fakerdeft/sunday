@@ -1,0 +1,12 @@
+Limit  (cost=0.43..0.60 rows=1 width=60) (actual time=0.262..0.281 rows=1 loops=1)
+  Buffers: shared hit=6 read=3
+  ->  LockRows  (cost=0.43..64076.92 rows=364254 width=60) (actual time=0.227..0.245 rows=1 loops=1)
+        Buffers: shared hit=6 read=3
+        ->  Index Scan using idx_product_stock_claim on product_stock  (cost=0.43..60434.38 rows=364254 width=60) (actual time=0.128..0.146 rows=1 loops=1)
+              Index Cond: (product_id = 1)
+              Filter: ((status)::text = 'AVAILABLE'::text)
+              Buffers: shared hit=4 read=3
+Planning:
+  Buffers: shared hit=145 read=1
+Planning Time: 1.181 ms
+Execution Time: 0.388 ms

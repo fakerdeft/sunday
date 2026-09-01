@@ -4,10 +4,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.runApplication
 import org.springframework.scheduling.annotation.EnableScheduling
 
-/**
- * 대기열 서버다. 자체 데이터베이스를 갖지 않고 Redis 만 사용한다.
- * 재고는 주문 서버에 물어보고, 입장을 허가할 때 증표를 발급한다.
- */
+/** 게이트 서버. 자체 DB 없이 Redis 만 쓴다. JPA 는 클래스패스에서 제외돼 있다. */
 @SpringBootApplication
 @EnableScheduling
 class GateApiApplication

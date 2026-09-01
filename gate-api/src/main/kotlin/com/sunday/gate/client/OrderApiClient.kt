@@ -18,10 +18,6 @@ class OrderApiClient(
         })
         .build()
 
-    /**
-     * 재고 현황을 조회한다. 입장 스케줄러가 주기적으로 한 번씩만 호출하므로
-     * 대기 인원이 늘어도 주문 서버로 가는 호출 수는 늘지 않는다.
-     */
     fun getStockSnapshot(productId: Long): ProductStockSnapshot =
         restClient.get()
             .uri("/api/orders/products/{productId}/stock-snapshot", productId)

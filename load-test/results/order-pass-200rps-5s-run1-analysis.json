@@ -1,0 +1,26 @@
+﻿{
+    "runId":  "20260815184842",
+    "targetRate":  200,
+    "duration":  "5s",
+    "productId":  1,
+    "stock":  100,
+    "journeys":  1001,
+    "droppedIterations":  0,
+    "passP95Ms":  27.21,
+    "orderP95Ms":  536.18,
+    "journeyP95Ms":  548,
+    "outcomes":  {
+                     "reserved":  100,
+                     "soldOutAtGate":  688,
+                     "soldOutAtOrder":  213,
+                     "notAdmitted":  0
+                 },
+    "queueApiRequests":  1314,
+    "orderApiRequests":  313,
+    "finalState":  {
+                       "pendingReservations":  100,
+                       "availableUnitStocks":  0,
+                       "productStockColumn":  100
+                   },
+    "invariantHolds":  true
+}

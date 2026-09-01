@@ -16,12 +16,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.LocalDateTime
 
-/**
- * 재고 선점 방식을 비교하기 위한 기준선과 측정 보조 기능이다. 운영 주문 경로에서는 사용하지 않는다.
- *
- * - [createWithSkipLocked] : 운영과 같은 단위 재고 + `FOR UPDATE SKIP LOCKED` 방식
- * - [createWithPessimisticLock] : 단일 수량 컬럼을 비관적 락으로 잠그는 기준선
- */
+/** 재고 선점 방식 비교용 기준선. 운영 경로에서는 사용하지 않는다. */
 @Profile("local")
 @Service
 class OrderBenchmarkService(

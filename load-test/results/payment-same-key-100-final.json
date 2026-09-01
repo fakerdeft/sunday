@@ -1,0 +1,219 @@
+{
+    "setup_data": {
+        "balanceBefore": 3602000,
+        "idempotencyKey": "k6-payment-875747592741035100-1786631296755",
+        "reservationId": "875747592741035199",
+        "amount": 199000
+    },
+    "root_group": {
+        "name": "",
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "checks": {
+                    "order data reset succeeds": {
+                        "id": "25bc52781c619343912b0fae0c9cd269",
+                        "passes": 1,
+                        "fails": 0,
+                        "name": "order data reset succeeds",
+                        "path": "::setup::order data reset succeeds"
+                    },
+                    "account setup succeeds": {
+                        "name": "account setup succeeds",
+                        "path": "::setup::account setup succeeds",
+                        "id": "be0692feb3354d5d55341aa144ee845d",
+                        "passes": 1,
+                        "fails": 0
+                    },
+                    "reservation setup succeeds": {
+                        "name": "reservation setup succeeds",
+                        "path": "::setup::reservation setup succeeds",
+                        "id": "f94cca6d38bcf2c5a6f3640d9e7c7a60",
+                        "passes": 1,
+                        "fails": 0
+                    }
+                },
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a",
+                "groups": {}
+            },
+            "teardown": {
+                "id": "a8a9942382e8ffe2e56ef29e664b8229",
+                "groups": {},
+                "checks": {
+                        "account is debited exactly once": {
+                            "name": "account is debited exactly once",
+                            "path": "::teardown::account is debited exactly once",
+                            "id": "f3f07dda620d0002d1733ffe9e2c38db",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "one payment reaches COMPLETED": {
+                            "path": "::teardown::one payment reaches COMPLETED",
+                            "id": "2711fbc326afae67274d936569ae5bff",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "one payment reaches COMPLETED"
+                        },
+                        "one order reaches PAID": {
+                            "name": "one order reaches PAID",
+                            "path": "::teardown::one order reaches PAID",
+                            "id": "6af0bb275b60ea09915cacb793056f30",
+                            "passes": 1,
+                            "fails": 0
+                        }
+                    },
+                "name": "teardown",
+                "path": "::teardown"
+            }
+        },
+        "checks": {
+            "duplicate request follows the idempotency contract": {
+                "fails": 0,
+                "name": "duplicate request follows the idempotency contract",
+                "path": "::duplicate request follows the idempotency contract",
+                "id": "c10061894aa3ba2496458e1180c59237",
+                "passes": 100
+            }
+        }
+    },
+    "metrics": {
+        "data_sent": {
+            "rate": 15211.589461307036,
+            "count": 26441
+        },
+        "http_req_blocked": {
+            "p(95)": 44.60799539999999,
+            "avg": 11.092259598130841,
+            "min": 0.0028,
+            "med": 2.397748,
+            "max": 47.357435,
+            "p(90)": 31.0388642
+        },
+        "http_req_failed": {
+            "passes": 0,
+            "fails": 107,
+            "value": 0
+        },
+        "data_received": {
+            "count": 42866,
+            "rate": 24660.94299944735
+        },
+        "payment_response_duration": {
+            "p(95)": 1229.9566975499997,
+            "avg": 600.9755949600002,
+            "min": 80.408484,
+            "med": 565.0681770000001,
+            "max": 1463.467317,
+            "p(90)": 1082.5000220000002
+        },
+        "vus": {
+            "max": 50,
+            "value": 50,
+            "min": 50
+        },
+        "http_reqs": {
+            "count": 107,
+            "rate": 61.55743248590647
+        },
+        "http_req_duration": {
+            "med": 534.518533,
+            "max": 1463.467317,
+            "p(90)": 1081.480578,
+            "p(95)": 1225.1054618,
+            "avg": 563.8768112429908,
+            "min": 8.757342
+        },
+        "http_req_connecting": {
+            "avg": 11.017830635514015,
+            "min": 0,
+            "med": 2.077029,
+            "max": 47.239729,
+            "p(90)": 30.9651394,
+            "p(95)": 44.538700299999995
+        },
+        "payment_conflict_response_count": {
+            "count": 0,
+            "rate": 0
+        },
+        "iteration_duration": {
+            "med": 567.907903,
+            "max": 1468.666839,
+            "p(90)": 1128.0442948,
+            "p(95)": 1269.7900418499999,
+            "avg": 612.9118208999998,
+            "min": 80.595496
+        },
+        "iterations": {
+            "rate": 57.53031073449202,
+            "count": 100
+        },
+        "http_req_sending": {
+            "med": 0.056703,
+            "max": 0.203312,
+            "p(90)": 0.15931000000000006,
+            "p(95)": 0.178261,
+            "avg": 0.07692438317757005,
+            "min": 0.0113
+        },
+        "payment_unexpected_response_rate": {
+            "passes": 0,
+            "fails": 100,
+            "thresholds": {
+                "rate==0": false
+            },
+            "value": 0
+        },
+        "vus_max": {
+            "value": 50,
+            "min": 50,
+            "max": 50
+        },
+        "http_req_duration{expected_response:true}": {
+            "avg": 563.8768112429908,
+            "min": 8.757342,
+            "med": 534.518533,
+            "max": 1463.467317,
+            "p(90)": 1081.480578,
+            "p(95)": 1225.1054618
+        },
+        "http_req_waiting": {
+            "min": 8.285014,
+            "med": 533.520972,
+            "max": 1462.979786,
+            "p(90)": 1081.2279828,
+            "p(95)": 1224.4277986999998,
+            "avg": 563.3340953084108
+        },
+        "http_req_tls_handshaking": {
+            "avg": 0,
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0
+        },
+        "http_req_receiving": {
+            "p(95)": 1.0076224999999992,
+            "avg": 0.4657915514018692,
+            "min": 0.057003,
+            "med": 0.372223,
+            "max": 1.77811,
+            "p(90)": 0.8546734000000001
+        },
+        "payment_completed_response_count": {
+            "count": 100,
+            "rate": 57.53031073449202
+        },
+        "checks": {
+            "passes": 106,
+            "fails": 0,
+            "thresholds": {
+                "rate>0.99": false
+            },
+            "value": 1
+        }
+    }
+}

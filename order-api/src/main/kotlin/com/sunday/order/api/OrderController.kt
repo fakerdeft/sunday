@@ -40,12 +40,10 @@ class OrderController(
         return ProductResponse.from(availability.product, availability.availableStock)
     }
 
-    /** 대기열 서버가 입장 인원을 정할 때 주기적으로 조회한다. */
     @GetMapping("/products/{productId}/stock-snapshot")
     fun getStockSnapshot(@PathVariable productId: Long): ProductStockSnapshotResponse =
         ProductStockSnapshotResponse.from(orderService.getStockSnapshot(productId))
 
-    /** 대기열에서 입장 증표를 받은 회원만 호출할 수 있다. */
     @PostMapping("/reservations")
     @ResponseStatus(HttpStatus.CREATED)
     fun createReservation(

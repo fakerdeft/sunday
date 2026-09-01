@@ -11,10 +11,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
 
-/**
- * Payment DB에 대한 짧은 로컬 트랜잭션만 담당한다.
- * 서비스 간 HTTP 호출은 이 클래스 밖의 PaymentService에서 수행한다.
- */
+/** 짧은 로컬 트랜잭션 전용. 서비스 간 HTTP 호출은 트랜잭션 밖 PaymentService 가 한다. */
 @Service
 class PaymentTransactionService(
     private val paymentRepository: PaymentRepository

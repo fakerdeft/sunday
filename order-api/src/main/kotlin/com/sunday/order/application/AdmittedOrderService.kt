@@ -7,12 +7,7 @@ import com.sunday.order.domain.OrderReservation
 import com.sunday.order.domain.SingleItemOnlyException
 import org.springframework.stereotype.Service
 
-/**
- * 게이트에서 통행증을 받은 회원만 주문할 수 있게 한다.
- *
- * 통행증은 게이트 서버가 발급하고 여기서는 서명만 검증한다.
- * 두 서버가 저장소를 공유하거나 서로를 호출하지 않는다.
- */
+/** 통행증 서명만 검증한다. 게이트를 호출하거나 저장소를 공유하지 않는다. */
 @Service
 class AdmittedOrderService(
     private val admissionTokenCodec: AdmissionTokenCodec,

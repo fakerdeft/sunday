@@ -8,12 +8,7 @@ import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
-/**
- * Redis Streams 접수 큐 워커가 사용하는 예약 생성 경로다.
- *
- * DB 커밋과 Redis 확인 응답 사이에 장애가 나서 메시지가 다시 배달돼도 같은 예약을 돌려주도록
- * 요청 ID를 예약 키로 사용한다.
- */
+/** 요청 ID 를 예약 키로 써서 메시지 재배달에도 같은 예약을 돌려준다. */
 @Profile("local")
 @Service
 class OrderStreamReservationService(

@@ -1,0 +1,30 @@
+{
+    "runId":  "20260814022418",
+    "targetRate":  500,
+    "duration":  "40s",
+    "productId":  1,
+    "stock":  100,
+    "accepted":  20001,
+    "droppedIterations":  0,
+    "acceptanceP95Ms":  33.2,
+    "terminalStatuses":  {
+                             "succeeded":  100,
+                             "soldOut":  19901,
+                             "rejected":  0,
+                             "failed":  0
+                         },
+    "retriedRequests":  0,
+    "queueDrainAfterLoadMs":  303896,
+    "processingThroughputPerSecond":  57.88,
+    "endToEndLatencyMs":  {
+                              "p50":  168317.93,
+                              "p95":  292091.48,
+                              "max":  305570.99
+                          },
+    "finalState":  {
+                       "pendingReservations":  100,
+                       "availableUnitStocks":  0,
+                       "productStockColumn":  100
+                   },
+    "invariantHolds":  true
+}

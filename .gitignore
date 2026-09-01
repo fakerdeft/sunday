@@ -51,8 +51,6 @@ HELP.md
 **/src/main/resources/application*.yml
 /infra/
 
-# Load-test assets are versioned in the sunday-config submodule.
-/load-test/
 
 # Claude Code
 .claude/

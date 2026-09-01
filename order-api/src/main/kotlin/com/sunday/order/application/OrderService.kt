@@ -20,12 +20,7 @@ import com.sunday.order.repository.ProductStockRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
-/**
- * 운영 주문 경로다.
- *
- * 주문 생성은 대기열에서 입장이 허가된 회원만 [createAdmittedReservation] 으로 호출한다.
- * 재고 선점 방식을 비교하기 위한 경로는 `com.sunday.order.benchmark` 패키지에 따로 있다.
- */
+/** 운영 주문 경로. 비교 측정 경로는 `com.sunday.order.benchmark` 에 따로 있다. */
 @Service
 class OrderService(
     private val productRepository: ProductRepository,
@@ -37,11 +32,7 @@ class OrderService(
     companion object {
         private const val EXPIRATION_BATCH_SIZE = 100
 
-        /**
-         * 게이트는 통행증 한 장을 내줄 때 재고 하나를 차감한다.
-         * 주문이 두 개 이상을 가져가면 게이트가 센 수량과 실제로 팔린 수량이 어긋나므로
-         * 선착순 주문은 통행증 한 장당 한 개로 제한한다.
-         */
+        /** 게이트는 통행증 한 장에 재고 하나를 차감한다. 수량을 늘리면 게이트 집계와 어긋난다. */
         const val ORDER_QUANTITY = 1
     }
 
@@ -58,10 +49,7 @@ class OrderService(
         return ProductAvailability(product, productStockRepository.countAvailable(productId))
     }
 
-    /**
-     * 게이트 서버가 발급 가능 수량을 정하는 데 쓰는 재고 현황이다.
-     * 주기마다 상품당 한 번만 호출되므로 대기 트래픽이 늘어도 이 조회는 늘지 않는다.
-     */
+    /** 게이트 스케줄러 전용. 주기당 상품 하나에 한 번만 호출된다. */
     @Transactional(readOnly = true)
     fun getStockSnapshot(productId: Long): ProductStockSnapshot = ProductStockSnapshot(
         productId = productId,
@@ -69,15 +57,9 @@ class OrderService(
     )
 
     /**
-     * 게이트에서 통행증을 받은 회원의 주문이다.
+     * 통행증 지문을 예약 키로 써서 통행증 한 장이 예약 하나만 만들게 한다.
      *
-     * 통행증의 지문을 예약 키로 삼아 통행증 한 장이 예약 하나만 만들도록 한다.
-     * 같은 통행증으로 다시 요청하면 새로 만들지 않고 기존 예약을 그대로 돌려주므로,
-     * 응답을 받지 못한 클라이언트가 재시도해도 재고가 두 번 빠지지 않는다.
-     *
-     * 예약 생성은 [StockReservationService.reserve] 가 자체 트랜잭션으로 처리한다.
-     * 여기에 트랜잭션을 걸면 유니크 제약 위반 이후 같은 트랜잭션에서 복구 조회를 할 수 없어
-     * 이 메서드는 트랜잭션 경계를 갖지 않는다.
+     * 트랜잭션을 걸지 않는다. 유니크 제약 위반 후 같은 트랜잭션에서는 복구 조회가 불가능하다.
      */
     fun createAdmittedReservation(
         memberId: Long,
@@ -96,8 +78,7 @@ class OrderService(
                 reservationKey = reservationKey
             )
         } catch (e: DuplicatePendingOrderException) {
-            // 같은 통행증으로 동시에 들어온 요청이 먼저 예약을 만든 경우다.
-            // 다른 통행증 때문에 생긴 중복이면 조회 결과가 없으므로 그대로 알린다.
+            // 같은 통행증의 동시 요청이면 기존 예약, 다른 통행증이면 조회 결과가 없어 그대로 전파
             reservationRepository.findByReservationKey(reservationKey) ?: throw e
         }
     }
@@ -213,7 +194,7 @@ class OrderService(
             return
         }
 
-        // 비교 측정 전용(비관적 락) 예약만 단일 수량 컬럼을 되돌린다.
+        // 비관적 락 기준선 예약만 수량 컬럼 복구
         val product = productRepository.findByIdWithPessimisticLock(reservation.productId)
             ?: throw ProductNotFoundException(reservation.productId)
 

@@ -21,10 +21,7 @@ class PaymentService(
 ) {
     private val log = LogManager.getLogger(javaClass)
 
-    /**
-     * 외부 API 호출은 DB 트랜잭션 밖에서 실행한다. 각 단계는 고정된 작업 키로 재시도하고,
-     * 성공 응답을 확인한 뒤 짧은 로컬 트랜잭션으로 다음 상태를 기록한다.
-     */
+    /** 외부 API 호출은 DB 트랜잭션 밖. 응답 확인 후 짧은 로컬 트랜잭션으로 다음 상태 기록. */
     fun processPayment(reservationId: Long, memberId: Long, idempotencyKey: String): Payment {
         val existing = paymentTransactionService.findByIdempotencyKey(idempotencyKey)
 
@@ -101,7 +98,7 @@ class PaymentService(
         validateReservationOwnerAndAmount(reservation, memberId, expectedAmount = null)
 
         if (!reservation.canPay()) {
-            // A concurrent request may have completed the order after the first DB lookup.
+            // 첫 조회 이후 동시 요청이 결제를 끝냈을 수 있다.
             val concurrent = findExistingPaymentForOrder(reservationId, memberId, idempotencyKey)
 
             if (concurrent != null) {

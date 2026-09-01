@@ -14,9 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-/**
- * 재고 선점 방식 비교 측정 전용 엔드포인트다. `local` 프로필에서만 등록된다.
- */
+/** 비교 측정 전용. `local` 프로필에서만 등록된다. */
 @Profile("local")
 @RestController
 @RequestMapping("/load-tests/orders")

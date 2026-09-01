@@ -18,10 +18,8 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * `product_stock` 단위 재고 행을 `FOR UPDATE SKIP LOCKED`로 선점하는 공통 로직이다.
- *
- * 운영 주문 경로와 비교 측정 경로가 같은 선점 방식을 쓰도록 여기에 모아 두었다.
- * 경로마다 다른 것은 예약 키뿐이며, 예약 키는 [com.sunday.order.domain.ReservationOrigin] 이 만든다.
+ * 단위 재고 행 선점 공통 로직. 운영과 비교 측정이 같은 방식을 쓰도록 여기에 모았다.
+ * 경로마다 다른 것은 예약 키뿐이다.
  */
 @Service
 class StockReservationService(

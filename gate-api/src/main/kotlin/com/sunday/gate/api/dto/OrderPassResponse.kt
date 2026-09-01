@@ -8,7 +8,6 @@ data class OrderPassResponse(
     val productId: Long,
     val status: OrderPassStatus,
 
-    /** 통과한 경우 주문 서버에 `X-ADMISSION-TOKEN` 헤더로 제시할 증표 */
     val token: String?,
     val expiresAt: Instant?,
     val canOrder: Boolean

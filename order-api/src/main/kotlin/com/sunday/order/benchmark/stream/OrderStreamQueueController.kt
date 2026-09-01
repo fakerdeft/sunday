@@ -14,10 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 
-/**
- * Redis Streams 접수 큐의 이전 구현이다. 대기열이 입장 제어 방식으로 바뀐 뒤에는
- * 두 방식을 비교 측정하기 위해서만 남겨 두었으며 `local` 프로필에서만 등록된다.
- */
+/** 이전 구현(Redis Streams 접수 큐). 비교 측정용이며 `local` 프로필에서만 등록된다. */
 @Profile("local")
 @RestController
 @RequestMapping("/load-tests/orders")

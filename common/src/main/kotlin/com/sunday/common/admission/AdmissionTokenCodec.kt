@@ -8,13 +8,10 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * 대기열 입장 증표를 만들고 검증한다.
+ * 게이트가 발급하고 주문 서버가 서명만 검증하는 통행증.
+ * 두 서버가 저장소를 공유하지 않고도 입장 여부를 확인하기 위한 것이다.
  *
- * 대기열 서버가 입장을 허가하면서 발급하고, 주문 서버는 서명만 검증한다.
- * 두 서버가 저장소를 공유하거나 서로를 호출하지 않고도 입장 여부를 확인할 수 있게 하는 것이 목적이다.
- *
- * 형식은 `base64url(payload).base64url(HMAC-SHA256(payload))` 이며,
- * payload 는 `회원ID:상품ID:만료시각(ms)` 이다.
+ * `base64url(payload).base64url(HMAC-SHA256(payload))`, payload 는 `회원ID:상품ID:만료시각(ms)`.
  */
 class AdmissionTokenCodec(secret: String) {
     companion object {
@@ -23,11 +20,7 @@ class AdmissionTokenCodec(secret: String) {
         private const val PAYLOAD_FIELD_COUNT = 3
         private const val FINGERPRINT_ALGORITHM = "SHA-256"
 
-        /**
-         * 통행증을 고정 길이 지문으로 바꾼다. 같은 통행증은 언제나 같은 값이 된다.
-         *
-         * 통행증 자체를 저장하지 않고도 "이미 사용된 통행증"을 식별하기 위한 것이라 비밀키가 필요 없다.
-         */
+        /** 통행증 지문. 예약 키로 쓰기 위한 것이라 비밀키가 필요 없다. */
         fun fingerprint(token: String): String =
             MessageDigest.getInstance(FINGERPRINT_ALGORITHM)
                 .digest(token.toByteArray(StandardCharsets.UTF_8))
@@ -80,7 +73,7 @@ class AdmissionTokenCodec(secret: String) {
             return AdmissionTokenResult.MALFORMED
         }
 
-        // 서명을 먼저 확인해야 내용이 조작된 증표로 다른 판정에 들어가지 않는다.
+        // 서명 우선 확인. 조작된 내용으로 이후 판정에 들어가지 않게 한다.
         if (!MessageDigest.isEqual(sign(payloadBytes), signature)) {
 
             return AdmissionTokenResult.BAD_SIGNATURE
@@ -125,19 +118,14 @@ class AdmissionTokenCodec(secret: String) {
 enum class AdmissionTokenResult {
     VALID,
 
-    /** 증표가 아예 오지 않음 */
     MISSING,
 
-    /** 형식이 깨짐 */
     MALFORMED,
 
-    /** 서명이 맞지 않음. 위조되었거나 비밀키가 다름 */
     BAD_SIGNATURE,
 
-    /** 다른 회원이나 다른 상품의 증표 */
     MISMATCHED,
 
-    /** 입장 유효 시간이 지남 */
     EXPIRED;
 
     fun isValid(): Boolean = this == VALID
