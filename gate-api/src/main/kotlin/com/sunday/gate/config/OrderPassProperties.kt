@@ -9,7 +9,7 @@ import java.time.Duration
 data class OrderPassProperties(
     var keyPrefix: String = "sunday:pass",
 
-    /** 통행증 유효 시간. 반납이 오지 않는 이탈 건의 회수 시간이다. */
+    /** 토큰 유효 시간. 해제 요청이 오지 않는 이탈 건의 회수 시간이다. */
     var passTtl: Duration = Duration.ofSeconds(30),
 
     /** budget TTL. 동기화가 끊기면 만료돼 통과가 막힌다. 낡은 수량으로 발급하지 않기 위한 안전장치. */

@@ -81,7 +81,7 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `재고가 남아 있으면 통과시키고 증표를 발급한다`() {
+    fun `재고가 남아 있으면 통과시키고 토큰을 발급한다`() {
         syncWithStock(available = 3)
 
         val pass = orderPassService.requestPass(PRODUCT_ID, 101L)
@@ -91,7 +91,7 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `통행증은 재고 수만큼만 나가고 나머지는 즉시 품절이다`() {
+    fun `토큰은 재고 수만큼만 나가고 나머지는 즉시 품절이다`() {
         syncWithStock(available = 3)
 
         val passes = (1L..20L).map { offset -> orderPassService.requestPass(PRODUCT_ID, 200L + offset) }
@@ -103,13 +103,13 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `주문이 진행되는 동안 동기화가 없어도 통행증이 더 나가지 않는다`() {
+    fun `주문이 진행되는 동안 동기화가 없어도 토큰이 더 나가지 않는다`() {
         syncWithStock(available = 3)
 
         val first = (1L..3L).map { offset -> orderPassService.requestPass(PRODUCT_ID, 300L + offset) }
         assertThat(first.map { it.status }).containsOnly(OrderPassStatus.PASSED)
 
-        // 세 명이 주문을 마치고 통행증을 반납했다. 다음 동기화 전까지는 추가 발급이 없어야 한다.
+        // 세 명이 주문을 마치고 토큰을 해제했다. 다음 동기화 전까지는 추가 발급이 없어야 한다.
         (1L..3L).forEach { offset -> orderPassService.release(PRODUCT_ID, 300L + offset) }
 
         assertThat(orderPassService.requestPass(PRODUCT_ID, 399L).status)
@@ -127,7 +127,7 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `같은 회원이 다시 요청하면 같은 통행증을 돌려준다`() {
+    fun `같은 회원이 다시 요청하면 같은 토큰을 돌려준다`() {
         syncWithStock(available = 1)
 
         val first = orderPassService.requestPass(PRODUCT_ID, 501L)
@@ -139,7 +139,7 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `증표는 다른 회원이나 다른 상품에 쓸 수 없다`() {
+    fun `토큰은 다른 회원이나 다른 상품에 쓸 수 없다`() {
         syncWithStock(available = 1)
 
         val token = orderPassService.requestPass(PRODUCT_ID, 601L).token
@@ -172,7 +172,7 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `통행증을 받고 이탈하면 만료 후 다음 사람에게 돌아간다`() {
+    fun `토큰을 받고 이탈하면 만료 후 다음 사람에게 돌아간다`() {
         syncWithStock(available = 1)
         assertThat(orderPassService.requestPass(PRODUCT_ID, 901L).status).isEqualTo(OrderPassStatus.PASSED)
         assertThat(orderPassService.requestPass(PRODUCT_ID, 902L).status).isEqualTo(OrderPassStatus.SOLD_OUT)
@@ -185,13 +185,13 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `발급했지만 주문하지 않은 통행증은 재고를 잡고 있는 것으로 본다`() {
+    fun `발급했지만 주문하지 않은 토큰은 재고를 잡고 있는 것으로 본다`() {
         syncWithStock(available = 2)
 
         orderPassService.requestPass(PRODUCT_ID, 1001L)
         orderPassService.requestPass(PRODUCT_ID, 1002L)
 
-        // 두 명 모두 아직 주문 전이라 재고는 그대로 2이지만 통행증은 더 나가지 않는다.
+        // 두 명 모두 아직 주문 전이라 재고는 그대로 2이지만 토큰은 더 나가지 않는다.
         syncWithStock(available = 2)
 
         assertThat(orderPassService.budget(PRODUCT_ID)).isZero()
@@ -200,7 +200,7 @@ class OrderPassIntegrationTest {
     }
 
     @Test
-    fun `동기화가 끊기면 통행증을 내주지 않는다`() {
+    fun `동기화가 끊기면 토큰을 내주지 않는다`() {
         // 발급 가능 수량이 설정된 적이 없는 상태다.
         assertThat(orderPassService.requestPass(PRODUCT_ID, 1101L).status)
             .isEqualTo(OrderPassStatus.SOLD_OUT)

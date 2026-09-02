@@ -87,12 +87,12 @@ class OrderPassService(
             now.toEpochMilli().toString(),
             properties.passTtl.toMillis().toString(),
             properties.keyTtlSeconds().toString()
-        ) ?: error("Redis 가 통행증 판정 결과를 반환하지 않았습니다.")
+        ) ?: error("Redis 가 토큰 발급 결과를 반환하지 않았습니다.")
 
         val values = result.split('|')
 
         if (values.size != 2) {
-            error("통행증 응답 형식이 올바르지 않습니다: $result")
+            error("토큰 발급 응답 형식이 올바르지 않습니다: $result")
         }
 
         if (values[0] != OrderPassStatus.PASSED.name) {

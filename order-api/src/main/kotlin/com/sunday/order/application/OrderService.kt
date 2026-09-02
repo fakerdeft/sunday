@@ -32,7 +32,7 @@ class OrderService(
     companion object {
         private const val EXPIRATION_BATCH_SIZE = 100
 
-        /** 게이트는 통행증 한 장에 재고 하나를 차감한다. 수량을 늘리면 게이트 집계와 어긋난다. */
+        /** 게이트는 토큰 하나에 재고 하나를 차감한다. 수량을 늘리면 게이트 집계와 어긋난다. */
         const val ORDER_QUANTITY = 1
     }
 
@@ -57,7 +57,7 @@ class OrderService(
     )
 
     /**
-     * 통행증 지문을 예약 키로 써서 통행증 한 장이 예약 하나만 만들게 한다.
+     * 토큰 해시를 예약 키로 써서 토큰 하나가 예약 하나만 만들게 한다.
      *
      * 트랜잭션을 걸지 않는다. 유니크 제약 위반 후 같은 트랜잭션에서는 복구 조회가 불가능하다.
      */
@@ -78,7 +78,7 @@ class OrderService(
                 reservationKey = reservationKey
             )
         } catch (e: DuplicatePendingOrderException) {
-            // 같은 통행증의 동시 요청이면 기존 예약, 다른 통행증이면 조회 결과가 없어 그대로 전파
+            // 같은 토큰의 동시 요청이면 기존 예약, 다른 토큰이면 조회 결과가 없어 그대로 전파
             reservationRepository.findByReservationKey(reservationKey) ?: throw e
         }
     }

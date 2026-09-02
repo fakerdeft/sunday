@@ -36,7 +36,7 @@ class StockSyncScheduler(
         val budget = orderPassService.syncBudget(productId, snapshot.availableStock)
 
         if (previous <= 0 && budget > 0) {
-            log.info("상품 {} 재고가 복구되어 통행증 {}장을 다시 발급할 수 있습니다", productId, budget)
+            log.info("상품 {} 재고가 복구되어 토큰 {}개를 다시 발급할 수 있습니다", productId, budget)
         }
     }
 }

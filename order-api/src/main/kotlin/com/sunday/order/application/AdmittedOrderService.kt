@@ -7,7 +7,7 @@ import com.sunday.order.domain.OrderReservation
 import com.sunday.order.domain.SingleItemOnlyException
 import org.springframework.stereotype.Service
 
-/** 통행증 서명만 검증한다. 게이트를 호출하거나 저장소를 공유하지 않는다. */
+/** 토큰 서명만 검증한다. 게이트를 호출하거나 저장소를 공유하지 않는다. */
 @Service
 class AdmittedOrderService(
     private val admissionTokenCodec: AdmissionTokenCodec,

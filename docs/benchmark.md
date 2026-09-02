@@ -124,12 +124,12 @@ ORDER BY id ASC LIMIT 1 FOR UPDATE SKIP LOCKED
 
 | 항목 | `(product_id, status)` | 부분 인덱스 |
 |---|---:|---:|
-| 실행 시간 | 116.5 ms | **0.10 ms** |
+| 실행 시간 | 131 ms | **0.39 ms** |
 | 읽은 블록 | 9,965 | **9** |
 | 필터로 버린 행 | 900,000 | **0** |
 | 사용된 인덱스 | `product_stock_pkey` | `idx_product_stock_claim` |
 
-기존 인덱스에는 `id`가 없어 `ORDER BY id`를 만족하지 못합니다. 옵티마이저는 대신 PK를 id 순으로 훑으며 조건에 맞는 첫 행을 찾았고, 판매된 90만 행을 전부 버렸습니다.
+기존 인덱스에는 `id`가 없어 `ORDER BY id`를 만족하지 못합니다. 옵티마이저는 대신 PK를 id 순으로 스캔하며 조건에 맞는 첫 행을 찾았고, 판매된 90만 행을 전부 버렸습니다.
 
 ```sql
 CREATE INDEX idx_product_stock_claim
@@ -141,7 +141,7 @@ CREATE INDEX idx_product_stock_claim
 
 <details><summary>같이 확인한 것</summary>
 
-- 완전 소진된 상품은 인덱스에 항목이 없어 **0.04 ms**에 빈 결과를 반환합니다. 기존 인덱스로는 100만 행을 훑었습니다.
+- 완전 소진된 상품은 인덱스에 항목이 없어 **0.04 ms**에 빈 결과를 반환합니다. 기존 인덱스로는 100만 행을 스캔했습니다.
 - 게이트가 0.5초마다 호출하는 재고 개수 조회(`count(*)`)는 이 인덱스로 개선되지 않습니다. 100만 행을 세는 비용이라 별도 문제입니다(약 45 ms).
 - `FOR UPDATE`는 실제 행을 잠그므로 Index Only Scan이 되지 않습니다. 위 수치는 실제 쿼리 형태로 측정했습니다.
 

@@ -68,7 +68,7 @@ class AdmittedOrderIntegrationTest {
         val product = productRepository.save(
             Product(
                 id = 0L,
-                name = "통행증 테스트 상품",
+                name = "토큰 테스트 상품",
                 price = BigDecimal("10000"),
                 stock = 0,
                 totalQuantity = 10,
@@ -85,7 +85,7 @@ class AdmittedOrderIntegrationTest {
         codec.issue(memberId, productId, Instant.now().plusSeconds(60))
 
     @Test
-    fun `같은 통행증으로 다시 주문하면 기존 예약을 그대로 돌려준다`() {
+    fun `같은 토큰으로 다시 주문하면 기존 예약을 그대로 돌려준다`() {
         saveUnitStocks(3)
         val token = issueToken(101L)
 
@@ -99,7 +99,7 @@ class AdmittedOrderIntegrationTest {
     }
 
     @Test
-    fun `통행증이 다르면 서로 다른 예약이 만들어진다`() {
+    fun `토큰이 다르면 서로 다른 예약이 만들어진다`() {
         saveUnitStocks(3)
 
         val first = admittedOrderService.createReservation(201L, productId, 1, issueToken(201L))
@@ -110,7 +110,7 @@ class AdmittedOrderIntegrationTest {
     }
 
     @Test
-    fun `취소된 뒤 같은 통행증으로 요청하면 취소된 예약을 돌려준다`() {
+    fun `취소된 뒤 같은 토큰으로 요청하면 취소된 예약을 돌려준다`() {
         saveUnitStocks(2)
         val token = issueToken(301L)
         val reservation = admittedOrderService.createReservation(301L, productId, 1, token)
@@ -125,11 +125,11 @@ class AdmittedOrderIntegrationTest {
     }
 
     @Test
-    fun `이미 대기 중인 예약이 있으면 새 통행증으로도 중복 주문할 수 없다`() {
+    fun `이미 대기 중인 예약이 있으면 새 토큰으로도 중복 주문할 수 없다`() {
         saveUnitStocks(3)
         admittedOrderService.createReservation(401L, productId, 1, issueToken(401L))
 
-        // 같은 회원이 통행증을 새로 받아 와도 대기 중인 예약이 있으면 막힌다.
+        // 같은 회원이 토큰을 새로 받아 와도 대기 중인 예약이 있으면 막힌다.
         assertThatThrownBy {
             admittedOrderService.createReservation(401L, productId, 1, issueToken(401L))
         }.isInstanceOf(com.sunday.order.domain.DuplicatePendingOrderException::class.java)
@@ -149,7 +149,7 @@ class AdmittedOrderIntegrationTest {
     }
 
     @Test
-    fun `통행증이 없으면 재고를 건드리지 않고 거절한다`() {
+    fun `토큰이 없으면 재고를 건드리지 않고 거절한다`() {
         saveUnitStocks(3)
 
         assertThatThrownBy {

@@ -44,7 +44,7 @@ class OrderQueueRequestNotFoundException(requestId: String) :
 
 class SingleItemOnlyException(productId: Long, quantity: Int) :
     OrderException(
-        "선착순 상품 $productId 는 통행증 한 장당 한 개만 주문할 수 있습니다. 입력값: $quantity"
+        "선착순 상품 $productId 는 한 개씩만 주문할 수 있습니다. 입력값: $quantity"
     )
 
 class NotAdmittedException(productId: Long, memberId: Long, reason: String) :

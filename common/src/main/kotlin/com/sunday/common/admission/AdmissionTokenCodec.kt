@@ -8,7 +8,7 @@ import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /**
- * 게이트가 발급하고 주문 서버가 서명만 검증하는 통행증.
+ * 게이트가 발급하고 주문 서버가 서명만 검증하는 토큰.
  * 두 서버가 저장소를 공유하지 않고도 입장 여부를 확인하기 위한 것이다.
  *
  * `base64url(payload).base64url(HMAC-SHA256(payload))`, payload 는 `회원ID:상품ID:만료시각(ms)`.
@@ -20,7 +20,7 @@ class AdmissionTokenCodec(secret: String) {
         private const val PAYLOAD_FIELD_COUNT = 3
         private const val FINGERPRINT_ALGORITHM = "SHA-256"
 
-        /** 통행증 지문. 예약 키로 쓰기 위한 것이라 비밀키가 필요 없다. */
+        /** 토큰 해시. 예약 키로 쓰기 위한 것이라 비밀키가 필요 없다. */
         fun fingerprint(token: String): String =
             MessageDigest.getInstance(FINGERPRINT_ALGORITHM)
                 .digest(token.toByteArray(StandardCharsets.UTF_8))
@@ -32,7 +32,7 @@ class AdmissionTokenCodec(secret: String) {
     private val decoder: Base64.Decoder = Base64.getUrlDecoder()
 
     init {
-        require(secret.isNotBlank()) { "입장 증표 비밀키가 비어 있습니다." }
+        require(secret.isNotBlank()) { "토큰 서명 비밀키가 비어 있습니다." }
     }
 
     fun issue(memberId: Long, productId: Long, expiresAt: Instant): String {

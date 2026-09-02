@@ -38,7 +38,7 @@ class AdmittedOrderServiceTest {
     )
 
     @Test
-    fun `유효한 증표가 있으면 주문을 생성한다`() {
+    fun `유효한 토큰이 있으면 주문을 생성한다`() {
         val token = codec.issue(memberId, productId, Instant.now().plusSeconds(60))
         every { orderService.createAdmittedReservation(memberId, productId, any()) } returns reservation()
 
@@ -49,7 +49,7 @@ class AdmittedOrderServiceTest {
     }
 
     @Test
-    fun `증표가 없으면 주문 로직에 들어가지 않는다`() {
+    fun `토큰이 없으면 주문 로직에 들어가지 않는다`() {
         assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 1, null) }
             .isInstanceOf(NotAdmittedException::class.java)
 
@@ -57,7 +57,7 @@ class AdmittedOrderServiceTest {
     }
 
     @Test
-    fun `다른 비밀키로 위조한 증표는 거절한다`() {
+    fun `다른 비밀키로 위조한 토큰은 거절한다`() {
         val forged = AdmissionTokenCodec("another-secret")
             .issue(memberId, productId, Instant.now().plusSeconds(60))
 
@@ -68,7 +68,7 @@ class AdmittedOrderServiceTest {
     }
 
     @Test
-    fun `다른 회원의 증표로는 주문할 수 없다`() {
+    fun `다른 회원의 토큰으로는 주문할 수 없다`() {
         val othersToken = codec.issue(999L, productId, Instant.now().plusSeconds(60))
 
         assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 1, othersToken) }
@@ -78,7 +78,7 @@ class AdmittedOrderServiceTest {
     }
 
     @Test
-    fun `다른 상품의 증표로는 주문할 수 없다`() {
+    fun `다른 상품의 토큰으로는 주문할 수 없다`() {
         val otherProductToken = codec.issue(memberId, 99L, Instant.now().plusSeconds(60))
 
         assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 1, otherProductToken) }
@@ -98,7 +98,7 @@ class AdmittedOrderServiceTest {
     }
 
     @Test
-    fun `증표가 없으면 수량과 무관하게 입장 거절이 먼저다`() {
+    fun `토큰 검증이 수량 검증보다 먼저다`() {
         assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 5, null) }
             .isInstanceOf(NotAdmittedException::class.java)
 
@@ -106,7 +106,7 @@ class AdmittedOrderServiceTest {
     }
 
     @Test
-    fun `유효 시간이 지난 증표는 거절한다`() {
+    fun `유효 시간이 지난 토큰은 거절한다`() {
         val expired = codec.issue(memberId, productId, Instant.now().minusSeconds(1))
 
         assertThatThrownBy { admittedOrderService.createReservation(memberId, productId, 1, expired) }
